@@ -2,14 +2,14 @@
 import os
 import re
 import time
-from urllib.parse import urljoin, urlsplit, urlunsplit, parse_qsl, urlencode
+from urllib.parse import urljoin
 
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, WebDriverException
 from webdriver_manager.chrome import ChromeDriverManager
 
 from base_crawler import BaseCrawler
@@ -17,56 +17,35 @@ from base_crawler import BaseCrawler
 
 class KakaoGiftCrawler(BaseCrawler):
     """
-    일반: 서브카테고리 클릭 → (상품 탭 진입) → 카드에서 데이터 수집
-    예외1: 와인/양주/전통주: (가격 등) 탭을 '전체' 제외하고 균등 분배 + 부족분 재분배
-    예외2: 아티스트/캐릭터: 서브카테고리별로 '전체'(+일부는 '주간 베스트') 제외 후
-          균등 분배 + 부족분 재분배
-    카드에서 수집: brand, product_name, price, satisfaction_pct, review_count, wish_count, tags, product_url
+    (예외 전부 제외) 일반 카테고리 전용 크롤러
+    - 상위 카테고리: 지정 목록 중 '와인/양주/전통주', '아티스트/캐릭터'는 건너뜀
+    - 흐름: 상위 카테고리 → 하위 카테고리 → (상품 탭 활성화) → 카드 목록 수집
+    - 카드 필드: brand, product_name, price, satisfaction_pct, review_count,
+                wish_count, tags, product_url
     """
 
     BASE = "https://gift.kakao.com"
-    DEFAULT_START = (
-        "https://gift.kakao.com/home?"
-        "targetType=ALL&rankType=MANY_RECEIVE&priceRange=20000_29999"
-    )
+    DEFAULT_START = "https://gift.kakao.com/home?categoryLayer=OPEN"
 
+    # 동작 파라미터
     SCROLL_PAUSE = 0.8
     CLICK_PAUSE = 0.5
     MAX_SCROLL_TRIES = 18
     IMPLICIT_WAIT = 5
 
-    # 상위 카테고리 화이트리스트 (이 순서대로만 순회)
+    # 상위 카테고리 화이트리스트(요청 목록)
     TOP_WHITELIST = [
-        "교환권",
-        "상품권",
-        "뷰티",
-        "패션",
-        "식품",
-        "와인/양주/전통주",
-        "리빙/도서",
-        "레저/스포츠",
-        "아티스트/캐릭터",
-        "유아동/반려",
-        "디지털/가전",
-        "카카오프렌즈",
+        "교환권", "상품권", "뷰티", "패션", "식품",
+        "와인/양주/전통주", "리빙/도서", "레저/스포츠",
+        "아티스트/캐릭터", "유아동/반려", "디지털/가전", "카카오프렌즈",
     ]
+    # 이번 라운드에서는 전부 제외
+    TOP_EXCLUDE_FOR_NOW = {"와인/양주/전통주", "아티스트/캐릭터"}
 
-    # 숨길 서브카테고리(특수 영역)
+    # 일반적으로 숨길 서브카테고리(카카오 내 특수 블럭)
     EXCLUDE_SUBCATS = {
-        "요즘 뷰티", "포인트적립 브랜드", "신규입점 브랜드", "MD추천", "신규입점"
-    }
-
-    # 항상 제외할 일반 탭명
-    EXCLUDE_TABS_GENERIC = {"전체"}
-
-    # 아티스트/캐릭터 하위별 제외 탭
-    EXCLUDE_TABS_BY_SUBCAT = {
-        "스타앨범": {"전체"},
-        "애니메이션 캐릭터": {"전체", "주간 베스트"},
-        "인디 작가": {"전체", "주간 베스트"},
-        "애니멀 캐릭터": {"전체", "주간 베스트"},
-        "웹소설": {"전체", "주간 베스트"},
-        "게임": {"전체"},
+        "요즘 뷰티", "포인트적립 브랜드", "신규입점 브랜드", "MD추천", "신규입점",
+        "추천", "계절가전"
     }
 
     def __init__(
@@ -88,34 +67,42 @@ class KakaoGiftCrawler(BaseCrawler):
         self.top_filter = top_filter
 
         self.driver = None
-        self.all_rows: list[dict] = []
+        self.all_rows = []
 
     # -------------------- 1) 브라우저 --------------------
     def start_browser(self):
         opts = Options()
         if self.headless:
             opts.add_argument("--headless=new")
-        opts.add_argument("--window-size=1440,1000")
+        opts.add_argument("--window-size=1500,1100")
         opts.add_argument("--no-sandbox")
         opts.add_argument("--disable-gpu")
         opts.add_argument("--lang=ko-KR")
-        # 자동화 배너 숨김 최소화
-        opts.add_experimental_option("excludeSwitches", ["enable-automation"])
-        opts.add_experimental_option('useAutomationExtension', False)
-
+        opts.add_argument("--disable-dev-shm-usage")
         service = Service(ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=service, options=opts)
         self.driver.implicitly_wait(self.IMPLICIT_WAIT)
 
     # -------------------- 유틸 --------------------
-    def wait(self, t=None): time.sleep(t if t is not None else self.SCROLL_PAUSE)
+    def wait(self, t=None):
+        time.sleep(t if t is not None else self.SCROLL_PAUSE)
+
     def js_click(self, el):
-        self.driver.execute_script("arguments[0].click();", el)
+        try:
+            self.driver.execute_script("arguments[0].click();", el)
+        except WebDriverException:
+            try:
+                el.click()
+            except Exception:
+                pass
         self.wait(self.CLICK_PAUSE)
+
     @staticmethod
     def safe_text(el):
-        try: return el.text.strip()
-        except Exception: return ""
+        try:
+            return el.text.strip()
+        except Exception:
+            return ""
 
     @staticmethod
     def to_int(text):
@@ -123,16 +110,23 @@ class KakaoGiftCrawler(BaseCrawler):
             return None
         s = re.sub(r"[^\d만\+,\s]", "", text).replace(",", "").replace(" ", "")
         if "만+" in s:
-            try: return int(s.replace("만+", "")) * 10000
-            except Exception: return None
+            try:
+                return int(s.replace("만+", "")) * 10000
+            except Exception:
+                return None
         if "만" in s:
-            try: return int(s.replace("만", "")) * 10000
-            except Exception: pass
-        try: return int(re.sub(r"[^\d]", "", s))
-        except Exception: return None
+            try:
+                return int(s.replace("만", "")) * 10000
+            except Exception:
+                pass
+        try:
+            return int(re.sub(r"[^\d]", "", s))
+        except Exception:
+            return None
 
-    # -------------------- 카테고리 패널 --------------------
-    def category_panel_visible(self) -> bool:
+    # -------------------- 카테고리 패널 / 헤더 버튼 --------------------
+    def category_panel_open(self) -> bool:
+        """카테고리 패널(좌측 레이어)이 열려 있는지 확인"""
         try:
             self.driver.find_element(By.CSS_SELECTOR, ".category_layer .list_ctgmenu")
             return True
@@ -140,59 +134,41 @@ class KakaoGiftCrawler(BaseCrawler):
             return False
 
     def click_header_category_button(self) -> bool:
-        """헤더의 '카테고리' 버튼 클릭 시도"""
-        self.driver.execute_script("window.scrollTo(0,0);")
-        self.wait(0.2)
+        """
+        헤더의 '카테고리' 버튼을 눌러 패널을 연다.
+        다양한 마크업 케이스를 대비해 여러 셀렉터를 시도.
+        """
         selectors = [
-            "button.btn_cate",                 # 버튼
-            "a[aria-label='카테고리']",
+            "button.btn_cate",
+            "div.group_head button.btn_cate",
             "button[aria-label='카테고리']",
-            "a[href*='category']",
+            "a[aria-label='카테고리']",
+            "a[href*='categoryLayer']",
         ]
         for sel in selectors:
             try:
                 btn = self.driver.find_element(By.CSS_SELECTOR, sel)
                 self.js_click(btn)
-                self.wait(0.8)
-                if self.category_panel_visible():
+                self.wait(0.6)
+                if self.category_panel_open():
                     return True
-            except NoSuchElementException:
+            except (NoSuchElementException, StaleElementReferenceException):
                 continue
         return False
 
-    def open_category_overlay(self) -> bool:
+    def ensure_category_panel(self):
         """
-        1) 카테고리 버튼 클릭으로 열기 시도
-        2) 실패 시 현재 URL에 categoryLayer=OPEN 파라미터를 강제 부여해 진입
+        카테고리 패널을 반드시 연다.
+        - 헤더 버튼 클릭 시도
+        - 그래도 실패하면 OPEN 파라미터 페이지로 강복귀
         """
-        if self.category_panel_visible():
-            return True
-
-        # 1차: 버튼 클릭
-        if self.click_header_category_button():
-            return True
-
-        # 2차: URL 파라미터로 강제 오픈
-        cur = self.driver.current_url
-        parts = urlsplit(cur)
-        qs = dict(parse_qsl(parts.query))
-        if qs.get("categoryLayer") != "OPEN":
-            qs["categoryLayer"] = "OPEN"
-            new_url = urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(qs), parts.fragment))
-            self.driver.get(new_url)
+        if self.category_panel_open():
+            return
+        if not self.click_header_category_button():
+            self.driver.get(self.DEFAULT_START)
             self.wait(1.0)
-            if self.category_panel_visible():
-                return True
 
-        # 3차: 홈의 카테고리 오버레이 고정 엔드포인트 시도 (fallback)
-        try:
-            self.driver.get("https://gift.kakao.com/page/19976?categoryLayer=OPEN")
-            self.wait(1.0)
-            return self.category_panel_visible()
-        except Exception:
-            return False
-
-    # -------------------- 카테고리/탭 조작 --------------------
+    # -------------------- 카테고리/탭 핸들러 --------------------
     def list_top_categories(self):
         els = self.driver.find_elements(
             By.CSS_SELECTOR,
@@ -230,8 +206,58 @@ class KakaoGiftCrawler(BaseCrawler):
                 return True
         return False
 
-    # --- 페이지 내 '상품/브랜드' 탭 제어(일반 수집용) ---
+    # -------------------- 페이지 내 하위 카테고리 버튼 제어 --------------------
+    def list_page_sub_categories(self):
+        """페이지 내 하위 카테고리 버튼들을 찾아서 텍스트 리스트 반환"""
+        els = self.driver.find_elements(
+            By.CSS_SELECTOR, 
+            ".list_ctgmain li a.link_ctg, .wrap_depth1 a.link_ctg, .area_ctglist a.link_ctg"
+        )
+        subcats = []
+        for el in els:
+            try:
+                # data-tiara-copy 속성에서 카테고리명 가져오기
+                text = el.get_attribute("data-tiara-copy")
+                if not text:
+                    # 직접 텍스트에서 가져오기
+                    text = self.safe_text(el)
+                if text and text not in subcats:
+                    subcats.append(text)
+            except Exception:
+                continue
+        return subcats
+
+    def click_page_sub_category(self, name):
+        """페이지 내 하위 카테고리 버튼 클릭"""
+        els = self.driver.find_elements(
+            By.CSS_SELECTOR, 
+            ".list_ctgmain li a.link_ctg, .wrap_depth1 a.link_ctg, .area_ctglist a.link_ctg"
+        )
+        for el in els:
+            try:
+                # data-tiara-copy 속성 확인
+                text = el.get_attribute("data-tiara-copy")
+                if not text:
+                    # 직접 텍스트 확인
+                    text = self.safe_text(el)
+                if text == name:
+                    self.js_click(el)
+                    self.wait(1.0)
+                    return True
+            except Exception:
+                continue
+        return False
+
+    def scroll_to_top(self):
+        """페이지 맨 위로 스크롤"""
+        self.driver.execute_script("window.scrollTo(0, 0);")
+        self.wait(0.5)
+
+    # --- 페이지 내 '상품/브랜드' 탭 제어 ---
     def ensure_product_tab(self):
+        """
+        일반 카테고리에서 '상품' 탭을 활성화한다.
+        """
         candidate_a = self.driver.find_elements(
             By.CSS_SELECTOR,
             ".wrap_srchtab a.link_tab, "
@@ -257,50 +283,34 @@ class KakaoGiftCrawler(BaseCrawler):
                 return True
         return False
 
-    # --- 탭 ---
-    def list_tabs(self):
-        try:
-            tabs = self.driver.find_elements(
-                By.CSS_SELECTOR,
-                ".module_wrapper .module_tab .rail_cate a.link_tab span.txt_tab",
-            )
-            return [self.safe_text(t) for t in tabs if self.safe_text(t)]
-        except NoSuchElementException:
-            return []
-
-    def click_tab(self, name):
-        tabs = self.driver.find_elements(
-            By.CSS_SELECTOR, ".module_wrapper .module_tab .rail_cate a.link_tab"
-        )
-        for a in tabs:
-            try:
-                txt = self.safe_text(a.find_element(By.CSS_SELECTOR, "span.txt_tab"))
-            except NoSuchElementException:
-                txt = self.safe_text(a)
-            if txt == name:
-                self.js_click(a)
-                self.wait(0.9)
-                return True
-        return False
-
     # -------------------- 스크롤/카드 파싱 --------------------
     def scroll_until_cards(self, min_cards, list_selector="ul.list_prd > li"):
-        for _ in range(6):
-            if self.driver.find_elements(By.CSS_SELECTOR, list_selector):
+        print(f"        카드 로딩 대기 중...")
+        for i in range(6):
+            cards = self.driver.find_elements(By.CSS_SELECTOR, list_selector)
+            if len(cards) > 0:
+                print(f"        ✓ 카드 발견: {len(cards)}개")
                 break
+            print(f"        대기 {i+1}/6...")
             self.wait(0.6)
 
         last_len, still = 0, 0
+        tries = 0
         while True:
             cards = self.driver.find_elements(By.CSS_SELECTOR, list_selector)
-            if len(cards) >= min_cards:
+            if len(cards) >= min_cards or tries >= self.MAX_SCROLL_TRIES:
+                print(f"        스크롤 완료: {len(cards)}개 (목표: {min_cards}개)")
                 break
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             self.wait(self.SCROLL_PAUSE)
             cards2 = self.driver.find_elements(By.CSS_SELECTOR, list_selector)
             still = still + 1 if len(cards2) == last_len else 0
             last_len = len(cards2)
-            if still >= self.MAX_SCROLL_TRIES:
+            tries += 1
+            if tries % 3 == 0:
+                print(f"        스크롤 {tries}/{self.MAX_SCROLL_TRIES}: {len(cards2)}개")
+            if still >= 4:
+                print(f"        더 이상 새로운 카드가 로드되지 않음")
                 break
 
     def parse_card(self, card):
@@ -314,13 +324,8 @@ class KakaoGiftCrawler(BaseCrawler):
             "tags": None,
             "product_url": None,
         }
-        # 링크 (여러 구조 대응)
-        link_selectors = [
-            "a.link_info[href]",
-            "div.thumb_prd a.link_thumb[href]",
-            "a.link_prd[href]",
-        ]
-        for sel in link_selectors:
+        # 링크
+        for sel in ["div.thumb_prd a.link_thumb[href]", "gc-link a.link_info[href]"]:
             try:
                 href = card.find_element(By.CSS_SELECTOR, sel).get_attribute("href")
                 if href:
@@ -328,7 +333,6 @@ class KakaoGiftCrawler(BaseCrawler):
                     break
             except NoSuchElementException:
                 pass
-
         # 텍스트들
         try:
             data["brand"] = self.safe_text(card.find_element(By.CSS_SELECTOR, "span.brand_prd"))
@@ -338,7 +342,6 @@ class KakaoGiftCrawler(BaseCrawler):
             data["product_name"] = self.safe_text(card.find_element(By.CSS_SELECTOR, "strong.txt_prdname"))
         except NoSuchElementException:
             pass
-
         for sel in ["em.num_price", "span.price_info em.num_price"]:
             try:
                 data["price"] = self.to_int(self.safe_text(card.find_element(By.CSS_SELECTOR, sel)))
@@ -346,13 +349,12 @@ class KakaoGiftCrawler(BaseCrawler):
                     break
             except NoSuchElementException:
                 pass
-
+        # 만족도/리뷰
         roots = [card]
         try:
             roots.insert(0, card.find_element(By.CSS_SELECTOR, "div.info_prd"))
         except NoSuchElementException:
             pass
-
         for r in roots:
             if data["satisfaction_pct"] is None:
                 try:
@@ -367,6 +369,7 @@ class KakaoGiftCrawler(BaseCrawler):
                     data["review_count"] = self.to_int(rv)
                 except NoSuchElementException:
                     pass
+        # 위시/태그
         try:
             data["wish_count"] = self.to_int(self.safe_text(card.find_element(By.CSS_SELECTOR, "span.num_wsh")))
         except NoSuchElementException:
@@ -379,161 +382,204 @@ class KakaoGiftCrawler(BaseCrawler):
         return data
 
     def collect_current_page(self, want_total, meta, seen_urls, already_collected=0):
+        print(f"      스크롤 시작 (목표: {want_total}개)...")
         self.scroll_until_cards(max(already_collected, want_total))
-        rows, new_count = [], 0
+        
+        # 상품 카드 찾기
         cards = self.driver.find_elements(By.CSS_SELECTOR, "ul.list_prd > li")
-        for c in cards:
-            item = self.parse_card(c)
-            url = item.get("product_url")
-            if not url or url in seen_urls:
+        print(f"      발견된 상품 카드: {len(cards)}개")
+        
+        if len(cards) == 0:
+            # 다른 선택자 시도
+            alternative_selectors = [
+                ".list_prd li",
+                ".list_product li", 
+                ".product_list li",
+                ".item_list li",
+                "[class*='product'] li",
+                "[class*='item'] li"
+            ]
+            for selector in alternative_selectors:
+                cards = self.driver.find_elements(By.CSS_SELECTOR, selector)
+                if len(cards) > 0:
+                    print(f"      대체 선택자 '{selector}'로 {len(cards)}개 발견")
+                    break
+        
+        rows, new_count = [], 0
+        for i, c in enumerate(cards):
+            try:
+                item = self.parse_card(c)
+                url = item.get("product_url")
+                if not url or url in seen_urls:
+                    continue
+                rows.append({**item, **meta})
+                seen_urls.add(url)
+                new_count += 1
+                if already_collected + new_count >= want_total:
+                    break
+                if new_count % 10 == 0:
+                    print(f"        진행: {new_count}개 수집됨")
+            except Exception as e:
+                print(f"        ! 카드 {i} 파싱 실패: {e}")
                 continue
-            rows.append({**item, **meta})
-            seen_urls.add(url)
-            new_count += 1
-            if already_collected + new_count >= want_total:
-                break
+        
+        print(f"      최종 수집: {new_count}개")
         return rows, new_count
 
-    # -------------------- 수집기 --------------------
+    # -------------------- 수집기(일반만) --------------------
     def crawl_general(self, top, sub, n):
+        """일반: (상품 탭으로 전환한 뒤) 카드에서 n개 목표(부족하면 있는 만큼)"""
         print(f"[{top} > {sub}] 일반 수집(상품 탭)")
-        self.ensure_product_tab()
-        rows, _ = self.collect_current_page(
+        
+        # 상품 탭 활성화 시도
+        print(f"    상품 탭 활성화 시도...")
+        if self.ensure_product_tab():
+            print(f"    ✓ 상품 탭 활성화 성공")
+        else:
+            print(f"    ! 상품 탭 활성화 실패, 현재 탭으로 진행")
+        
+        # 현재 페이지 URL 확인
+        current_url = self.driver.current_url
+        print(f"    현재 URL: {current_url}")
+        
+        # 상품 카드 수집
+        print(f"    상품 카드 수집 시작 (목표: {n}개)...")
+        rows, collected = self.collect_current_page(
             n,
             {"top_category": top, "sub_category": sub, "sub_tab": None},
             set(),
             0,
         )
+        print(f"    ✓ 수집 완료: {collected}개")
         return rows
-
-    def crawl_tabs_balanced(self, top, sub, total, exclude_tabs=None):
-        tabs_all = self.list_tabs()
-        excluding = set(exclude_tabs or set())
-        tab_names = [t for t in tabs_all if t and t not in excluding]
-        if not tab_names:
-            return self.crawl_general(top, sub, total)
-
-        print(f"[{top} > {sub}] 탭 균등 분배 수집 (총 {total}) / 사용탭: {tab_names}")
-        k = len(tab_names)
-        base = total // k
-        rem = total % k
-        plan = {t: base + (1 if i < rem else 0) for i, t in enumerate(tab_names)}
-
-        collected = {t: 0 for t in tab_names}
-        seen = set()
-        all_rows = []
-
-        # 1차 라운드
-        for t in tab_names:
-            if not self.click_tab(t):
-                continue
-            want = plan[t]
-            rows, got = self.collect_current_page(
-                want,
-                {"top_category": top, "sub_category": sub, "sub_tab": t},
-                seen,
-                collected[t],
-            )
-            all_rows.extend(rows)
-            collected[t] += got
-
-        # 부족분 재분배
-        deficit = sum(max(0, plan[t] - collected[t]) for t in tab_names)
-        if deficit <= 0:
-            return all_rows[:total]
-
-        MAX_PER_HOP = 30
-        safety = 0
-        while deficit > 0 and safety < 8:
-            progressed = 0
-            for t in tab_names:
-                if deficit <= 0:
-                    break
-                if not self.click_tab(t):
-                    continue
-                extra = min(MAX_PER_HOP, deficit)
-                want = collected[t] + extra
-                rows, got = self.collect_current_page(
-                    want,
-                    {"top_category": top, "sub_category": sub, "sub_tab": t},
-                    seen,
-                    collected[t],
-                )
-                if got > 0:
-                    all_rows.extend(rows)
-                    collected[t] += got
-                    deficit -= got
-                    progressed += got
-            if progressed == 0:
-                break
-            safety += 1
-
-        return all_rows[:total]
-
-    def crawl_price_tabs_balanced(self, top, sub, total):
-        return self.crawl_tabs_balanced(top, sub, total, exclude_tabs=self.EXCLUDE_TABS_GENERIC)
-
-    def crawl_artist_tabs(self, top, sub, total):
-        exclude = self.EXCLUDE_TABS_BY_SUBCAT.get(sub, {"전체"})
-        return self.crawl_tabs_balanced(top, sub, total, exclude_tabs=exclude)
 
     # -------------------- 2) 크롤링 파이프라인 --------------------
     def scrape_data(self):
         self.driver.get(self.start_url)
         self.wait(1.2)
-
-        # 항상 카테고리 패널을 띄운 상태에서 시작
-        self.open_category_overlay()
+        self.ensure_category_panel()
         self.all_rows = []
 
         avail_tops = self.list_top_categories()
-        # 화이트리스트 교집합 + 순서
-        desired = [t for t in self.TOP_WHITELIST if t in avail_tops]
+        # 요청한 12개 중 현재 라운드에서 제외할 2개 제거
+        avail_tops = [t for t in avail_tops if t in self.TOP_WHITELIST and t not in self.TOP_EXCLUDE_FOR_NOW]
         if self.top_filter:
-            # top_filter 지정 시, 화이트리스트 안에서만 필터링
-            wanted = [t.strip() for t in self.top_filter.split(",")]
-            target_tops = [t for t in desired if t in wanted]
+            allow = [t.strip() for t in self.top_filter.split(",")]
+            target_tops = [t for t in avail_tops if t in allow]
         else:
-            target_tops = desired
+            target_tops = avail_tops
 
-        print("대상 상위 카테고리:", target_tops)
+        print("대상 상위 카테고리(예외 제외):", target_tops)
 
         for top in target_tops:
+            print(f"\n=== 상위 카테고리 시작: {top} ===")
+            
+            # 현재 상위 카테고리의 데이터를 저장할 리스트
+            top_category_rows = []
+            
+            # 카테고리 패널에서 상위 카테고리 선택
+            self.ensure_category_panel()
             if not self.click_top_category(top):
                 print(f"  ! 상위 카테고리 클릭 실패: {top}")
-                self.open_category_overlay()
                 continue
 
-            subcats = self.list_sub_categories()
-            if not subcats:
+            # 패널에서 하위 카테고리 목록 가져오기
+            panel_subcats = self.list_sub_categories()
+            if not panel_subcats:
                 print(f"  ! 하위 카테고리 없음: {top}")
-                self.open_category_overlay()
                 continue
 
-            for sub in subcats:
-                if sub in self.EXCLUDE_SUBCATS:
-                    print(f"  - 제외: {top} > {sub}")
+            # 첫 번째 하위 카테고리로 이동 (패널에서 클릭)
+            first_sub = None
+            for sub in panel_subcats:
+                if sub not in self.EXCLUDE_SUBCATS:
+                    first_sub = sub
+                    break
+            
+            if not first_sub:
+                print(f"  ! 유효한 하위 카테고리 없음: {top}")
+                continue
+
+            if not self.click_sub_category(first_sub):
+                print(f"    ! 첫 번째 하위 카테고리 클릭 실패: {first_sub}")
+                continue
+
+            # 첫 번째 하위 카테고리 수집
+            try:
+                rows = self.crawl_general(top, first_sub, self.items_per_subcat)
+                top_category_rows.extend(rows)
+                self.all_rows.extend(rows)
+                print(f"    ✓ {first_sub}: {len(rows)}개 수집")
+            except Exception as e:
+                print(f"    ! {first_sub} 수집 실패: {e}")
+
+            # 페이지 내 하위 카테고리 버튼들로 나머지 순회
+            page_subcats = self.list_page_sub_categories()
+            print(f"    페이지 내 하위 카테고리 발견: {len(page_subcats)}개")
+            
+            for sub in page_subcats:
+                if sub in self.EXCLUDE_SUBCATS or sub == first_sub:
                     continue
-                if not self.click_sub_category(sub):
-                    print(f"    ! 하위 카테고리 클릭 실패: {sub}")
-                    self.open_category_overlay()
+                
+                # 페이지 위로 스크롤
+                self.scroll_to_top()
+                self.wait(0.5)
+                
+                # 페이지 내 버튼 클릭
+                if not self.click_page_sub_category(sub):
+                    print(f"      ! 페이지 내 하위 카테고리 클릭 실패: {sub}")
                     continue
 
+                # 수집
                 try:
-                    if top == "와인/양주/전통주":
-                        rows = self.crawl_price_tabs_balanced(top, sub, self.items_per_subcat)
-                    elif top == "아티스트/캐릭터":
-                        rows = self.crawl_artist_tabs(top, sub, self.items_per_subcat)
-                    else:
-                        rows = self.crawl_general(top, sub, self.items_per_subcat)
+                    rows = self.crawl_general(top, sub, self.items_per_subcat)
+                    top_category_rows.extend(rows)
                     self.all_rows.extend(rows)
-                finally:
-                    # 반드시 카테고리 패널로 복귀
-                    self.open_category_overlay()
+                    print(f"      ✓ {sub}: {len(rows)}개 수집")
+                except Exception as e:
+                    print(f"      ! {sub} 수집 실패: {e}")
+
+            # 상위 카테고리 완료 시 CSV에 저장
+            if top_category_rows:
+                print(f"\n=== {top} 카테고리 완료: {len(top_category_rows)}개 수집 ===")
+                self.save_to_database(top_category_rows, append_mode=True)
+                print(f"=== {top} 카테고리 저장 완료 ===\n")
 
         return self.all_rows
 
     # -------------------- 3) 저장 --------------------
-    def save_to_database(self, data):
-        df
+    def save_to_database(self, data, append_mode=False):
+        df = pd.DataFrame(data)
+        if df.empty:
+            print("수집 결과가 비었습니다.")
+            return
+        
+        df.drop_duplicates(subset=["product_url"], inplace=True)
+        cols = [
+            "top_category", "sub_category", "sub_tab",
+            "brand", "product_name", "price",
+            "satisfaction_pct", "review_count", "wish_count",
+            "tags", "product_url",
+        ]
+        df = df[[c for c in cols if c in df.columns]]
+        
+        if append_mode and os.path.exists(self.output_path):
+            # 기존 파일이 있으면 추가 모드로 저장
+            df.to_csv(self.output_path, mode='a', header=False, index=False, encoding="utf-8-sig")
+            print(f"추가 저장 완료: {self.output_path} (+{len(df)}개)")
+        else:
+            # 새 파일로 저장
+            df.to_csv(self.output_path, index=False, encoding="utf-8-sig")
+            print(f"저장 완료: {self.output_path} (총 {len(df)}개)")
 
+    # -------------------- 파이프라인 --------------------
+    def run(self):
+        self.start_browser()
+        try:
+            data = self.scrape_data()
+            # 마지막에 전체 데이터도 저장 (중복 제거 포함)
+            if data:
+                print(f"\n=== 전체 크롤링 완료: {len(data)}개 ===")
+                self.save_to_database(data, append_mode=False)
+        finally:
+            self.close_browser()
