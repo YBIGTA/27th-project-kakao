@@ -474,10 +474,14 @@ class KakaoGiftCrawler(BaseCrawler):
         for top in target_tops:
             print(f"\n=== 상위 카테고리 시작: {top} ===")
             
+            # 매 상위 카테고리 진입 시 항상 OPEN 페이지로 리셋
+            self.driver.get(self.DEFAULT_START)
+            self.wait(1.2)
+            
             # 현재 상위 카테고리의 데이터를 저장할 리스트
             top_category_rows = []
             
-            # 카테고리 패널에서 상위 카테고리 선택
+            # 패널 열기 보장
             self.ensure_category_panel()
             if not self.click_top_category(top):
                 print(f"  ! 상위 카테고리 클릭 실패: {top}")
