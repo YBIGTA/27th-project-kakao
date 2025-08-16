@@ -7,6 +7,12 @@ import re
 import regex  # 이모지 패턴을 위해 regex 모듈 추가
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+from .filter_non_korean import (
+    filter_dataframe_by_korean_ratio,
+    get_filtering_stats,
+    should_drop_row
+)
+from .korean_eomi_dict import END_EOMI_SPLIT_RE, get_eomi_context_score
 
 # 의미 없는 메시지 패턴 리스트
 REMOVE_LIST = [
@@ -267,12 +273,76 @@ def drop_only_k_chars(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         message = message.strip()
         
         # ㅋ/ㄱ/ㅎ/ㅌ/ㅠ/큐 전용행 체크
-        only_k_regex = r"^[ㅋㄱㅎㅌㅠㅜㅇ웅응엥앗음흠아와와헐헉오네넵옹후휴쿠큐\s]+$"
+        only_k_regex = r"^[ㅋㄱㅎㅌㅠㅜㅇㅗㄴ웅응엥앗음흠아와와헐헉오네넵옹후휴쿠큐.,!?;\s]+$"
         
         if not re.fullmatch(only_k_regex, message):
             filtered_data.append(item)
     
     return filtered_data
+
+def drop_long_text_with_few_eomi(data: List[Dict[str, Any]], 
+                                min_length: int = 200, 
+                                min_eomi_count: int = 5,
+                                keep_short: bool = True) -> List[Dict[str, Any]]:
+    """
+    긴 텍스트이면서 종결어미가 적은 행을 삭제합니다.
+    
+    Args:
+        data: 메시지 데이터 리스트
+        min_length: 이 길이 이상이면서 종결어미가 적으면 삭제
+        min_eomi_count: 이 개수 미만의 종결어미를 가진 긴 텍스트는 삭제
+        keep_short: True면 짧은 텍스트는 종결어미 개수와 관계없이 보존
+    
+    Returns:
+        필터링된 데이터
+    """
+    filtered_data = []
+    dropped_count = 0
+    
+    for item in data:
+        message = item.get('message', '')
+        if not isinstance(message, str):
+            filtered_data.append(item)
+            continue
+            
+        message = message.strip()
+        message_length = len(message)
+        
+        # 짧은 텍스트는 보존 (keep_short=True인 경우)
+        if keep_short and message_length < min_length:
+            filtered_data.append(item)
+            continue
+        
+        # 긴 텍스트인 경우 종결어미 개수 확인
+        if message_length >= min_length:
+            # 종결어미 개수 세기 (문맥 점수 5점 이상인 경우만)
+            eomi_count = 0
+            for match in END_EOMI_SPLIT_RE.finditer(message):
+                eomi_str = match.group()
+                
+                # 문맥 점수 계산 (정확한 위치 정보 전달)
+                context_score = get_eomi_context_score(message, eomi_str, match.start())
+                
+                # 문맥 점수가 5점 이상인 경우만 고려
+                if context_score >= 5.0:
+                    eomi_count += 1
+            
+            if eomi_count >= min_eomi_count:
+                # 종결어미가 충분히 있으면 보존
+                filtered_data.append(item)
+            else:
+                # 종결어미가 적으면 삭제
+                dropped_count += 1
+                print(f"🗑️ 종결어미 적은 긴 텍스트 삭제: '{message[:50]}...' (길이: {message_length}, 종결어미: {eomi_count}개)")
+        else:
+            # 짧은 텍스트는 보존
+            filtered_data.append(item)
+    
+    if dropped_count > 0:
+        print(f"  • 종결어미 적은 긴 텍스트 {dropped_count}개 삭제됨")
+    
+    return filtered_data
+
 
 def preprocess_messages(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """메시지들을 전처리합니다."""
@@ -319,6 +389,29 @@ def preprocess_messages(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         # None인 경우 (삭제 대상)는 제외
     
     data = filtered_data
+    
+    # 7. 비한국어 내용 필터링 (프로그래밍 코드, 터미널 로그 등)
+    print("  • 비한국어 내용 필터링 중...")
+    filtered_data = []
+    dropped_count = 0
+    
+    for item in data:
+        message = item.get('message', '')
+        if should_drop_row(message, min_chars=40, nonko_threshold=0.60, 
+                          special_threshold=0.12, keep_plain_english=True):
+            dropped_count += 1
+            print(f"🗑️ 비한국어 삭제: '{message[:50]}...'")
+        else:
+            filtered_data.append(item)
+    
+    data = filtered_data
+    
+    if dropped_count > 0:
+        print(f"  • 비한국어 내용 {dropped_count}개 삭제됨")
+    
+    # 8. 종결어미 적은 긴 텍스트 필터링
+    print("  • 종결어미 적은 긴 텍스트 필터링 중...")
+    data = drop_long_text_with_few_eomi(data, min_length=50, min_eomi_count=5)
     
     final_count = len(data)
     print(f"✅ 전처리 완료: {original_count}개 → {final_count}개 메시지")
