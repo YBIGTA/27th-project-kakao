@@ -22,10 +22,11 @@ from .filter_utils import (
     filter_by_user
 )
 
-# 익명화 유틸리티
-from .anonymize import (
-    anonymize_messages
-)
+# 어미 교정 유틸리티 (spell_utils 모듈이 없어서 주석 처리)
+# from .spell_utils import (
+#     fix_eomi_typos_pre_sbd,
+#     spell_check_kakao_messages
+# )
 
 # 한국어 어미 사전
 from .korean_eomi_dict import (
@@ -39,4 +40,9 @@ from .korean_eomi_dict import (
 from .sbd_processor import (
     process_sbd_merge,
     SBDConfig
+)
+
+# 익명화 유틸리티
+from .anonymize import (
+    anonymize_messages
 )

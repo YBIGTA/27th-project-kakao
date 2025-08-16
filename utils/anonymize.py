@@ -61,6 +61,9 @@ class PIIProcessor:
             # 3단계: 두 결과를 결합하여 마스킹 적용
             masked_text = self._apply_hybrid_masking(text, name_entities, other_entities)
             
+            # 4단계: 숫자 패턴 직접 마스킹 (전체 텍스트에서)
+            masked_text = self._mask_number_patterns(masked_text)
+            
             return masked_text
             
         except Exception as e:
@@ -123,27 +126,40 @@ class PIIProcessor:
     
     def _get_mask_tag(self, entity_type: str, entity_text: str) -> str:
         """개체명 타입에 따른 마스킹 태그를 반환합니다."""
-        # KoELECTRA NER 태그셋에 따른 마스킹
+        # 필요한 민감정보만 마스킹 (과도한 마스킹 방지)
         tag_mapping = {
             'B-PS': '{이름}',      # 인명 (PERSON)
             'I-PS': '{이름}',      # 인명 (PERSON)
             'B-LC': '{주소}',      # 지역/장소 (LOCATION)
             'I-LC': '{주소}',      # 지역/장소 (LOCATION)
-            'B-OG': '{소속정보}',   # 기관/단체 (ORGANIZATION)
-            'I-OG': '{소속정보}',   # 기관/단체 (ORGANIZATION)
-            'B-DT': '{날짜}',      # 날짜/기간 (DATE)
-            'I-DT': '{날짜}',      # 날짜/기간 (DATE)
-            'B-TI': '{시간}',      # 시간 (TIME)
-            'I-TI': '{시간}',      # 시간 (TIME)
-            'B-QT': '{숫자}',      # 수량 (QUANTITY)
-            'I-QT': '{숫자}',      # 수량 (QUANTITY)
-            'B-AF': '{물건}',      # 인공물 (ARTIFACTS)
-            'I-AF': '{물건}',      # 인공물 (ARTIFACTS)
-            'B-EV': '{사건}',      # 사건/행사 (EVENT)
-            'I-EV': '{사건}',      # 사건/행사 (EVENT)
         }
         
+        # 숫자 패턴 확인 (3개 이상의 아라비아 숫자)
+        if re.match(r'^\d{3,}$', entity_text):
+            return '{숫자}'
+        
+        # 숫자+하이픈+공백 패턴 확인
+        hyphen_regex = r'^\d+[-\s]+\d+[-\s]*\d*$'
+        if re.match(hyphen_regex, entity_text):
+            return '{숫자}'
+        
         return tag_mapping.get(entity_type, None)
+    
+    def _mask_number_patterns(self, text: str) -> str:
+        """전체 텍스트에서 숫자 패턴을 찾아 마스킹합니다."""
+        # 1. 연속된 숫자 3개 이상 (전화번호, 계좌번호 등)
+        text = re.sub(r'\d{3,}', '{숫자}', text)
+        
+        # 2. 숫자-숫자-숫자 패턴 (전화번호 형식)
+        text = re.sub(r'\d+-\d+-\d+', '{숫자}', text)
+        
+        # 3. 숫자-숫자 패턴
+        text = re.sub(r'\d+-\d+', '{숫자}', text)
+        
+        # 4. 숫자 공백 숫자 패턴
+        text = re.sub(r'\d+\s+\d+', '{숫자}', text)
+        
+        return text
     
     def get_pii_info(self, text: str) -> Dict[str, List[str]]:
         """텍스트에서 발견된 PII 정보를 반환합니다."""

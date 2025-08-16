@@ -4,7 +4,7 @@
 """
 
 # 기본 파일 경로
-INPUT_FILE = "db/input_db/KakaoTalk_Chat_경영 23 강예서(YBIGTA).csv"
+INPUT_FILE = "db/input_db/KakaoTalk_Chat_박채연.csv"
 OUTPUT_CSV = "processed_message.csv"
 OUTPUT_DIR = "db/output_db"  # db/output_db 폴더에 저장
 
