@@ -13,3 +13,4 @@ if __name__ == "__main__":
         top_filter=None
     )
     crawler.run()
+    
