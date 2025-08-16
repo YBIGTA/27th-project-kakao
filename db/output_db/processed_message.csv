@@ -1,0 +1,769 @@
+﻿date,user,message
+2025-07-20 01:50:39,경영 23 강예서(YBIGTA),나도 잘 안 돼서 잠깐 쉬고 있었어...
+2025-07-20 01:58:49,경영 23 강예서(YBIGTA),"악 어떡해, 나도 얼른 해야겠다"
+2025-07-20 02:00:19,경영 23 강예서(YBIGTA),아 왜지
+2025-07-20 02:01:29,경영 23 강예서(YBIGTA),"ㅋㅋㅋ좋아좋아, 파이팅!!!"
+2025-07-23 01:12:02,경영 23 강예서(YBIGTA),오빠 혹시 오빠가 작성한 코드 실행 돼? 내가 했을 때는 안 되는 거 같아서ㅠㅜㅠㅜ
+2025-07-23 02:01:48,경영 23 강예서(YBIGTA),"아냐, 해결했어!!!"
+2025-07-23 02:01:48,경영 23 강예서(YBIGTA),"{소속정보} 텍스트 처리에서 뭔가 오류 생긴 거 같아서, {소속정보} 크롤러 수정했어"
+2025-07-23 02:01:48,경영 23 강예서(YBIGTA),"아니아니, 웅웅!!"
+2025-07-23 02:01:48,경영 23 강예서(YBIGTA),"그, 내가 좀 수정했어"
+2025-07-23 02:01:48,경영 23 강예서(YBIGTA),"파생변수 만들면서 좀 수정해가지고, (사실 내가 한 거 아니고 {이름}{이름}{이름}{이름} 했어... ㅋㅋㅋ), 아이고야ㅠㅠ, 진짜 고생이다..."
+2025-07-23 02:01:48,경영 23 강예서(YBIGTA),"악, 마저, 아직아직"
+2025-07-23 02:06:35,경영 23 강예서(YBIGTA),앗 모 어떤 거 보내주면 되는 거야...?
+2025-07-23 02:06:35,경영 23 강예서(YBIGTA),"아하, 잠깐만, 좀 많이 바껴잇을 수도 잇어..."
+2025-07-23 02:06:35,경영 23 강예서(YBIGTA),"챗지피티한테 통으로, 맡겨서, 에이, 아닐거야, 아냐 ㅠㅠㅠ, 내가 뭔가 이해를 하고 하면, 직접 수정하면서 최대한 안 건들텐데, 챗지피티한테 시켜서 그런걸거야..."
+2025-07-23 02:06:35,경영 23 강예서(YBIGTA),"import pandas as pd
+import re
+from datetime import datetime
+from review_analysis.preprocessing.base_processor import BaseDataProcessor
+import os
+
+class ExampleProcessor(BaseDataProcessor):
+   def __init__(self, input_path: str, output_path: str):
+   super().__init__(input_path, output_path)
+   self.df = pd.read_csv(self.input_path)
+
+   def preprocess(self):
+   self.df.columns = self.df.columns.str.strip()
+
+   # 사이트별 컬럼명 변경
+   if ""naver"" in self.input_path:
+   self.df.rename(columns={""별점"": ""rate"", ""날짜"": ""date"", ""리뷰"": ""review""}, inplace=True)
+   elif ""emart"" in self.input_path:
+   self.df.rename(columns={""평점"": ""rate"", ""작성일"": ""date"", ""내용"": ""review""}, inplace=True)
+   elif ""lotteon"" in self.input_path:
+   self.df.rename(columns={""점수"": ""rate"", ""날짜"": ""date"", ""리뷰내용"": ""review""}, inplace=True)
+
+   # 날짜 변환 함수
+   def convert_date(date_str):
+   try:
+   date_str = str(date_str).strip().replace("" "", """").replace(""·"", """").replace("" "", """")
+   dt = datetime.strptime(date_str, ""%Y.%m.%d"")
+   return dt.strftime(""%Y-%m-%d"")
+   except:
+   return None
+
+   # 날짜 처리 및 요일 파생 변수 생성
+   self.df['date'] = self.df['date'].apply(convert_date)
+   self.df['weekday'] = pd.to_datetime(self.df['date'], errors='coerce').dt.day_name()
+
+   def truncate_review(text, max_len=100, min_len=80):
+   if len(text) <= max_len:
+   return text
+   cut_text = text[:max_len]
+   last_space = cut_text.rfind("" "")
+   if last_space >= min_len:
+   return cut_text[:last_space]
+   else:
+   return cut_text
+
+   def clean_review(text, max_len=100):
+   if not isinstance(text, str):
+   return """"
+   text = text.replace(""\n"", "" "").replace(""\r"", "" "")
+   text = re.sub(r""[^\w\s가-힣.,!?]"", """", text)
+   text = re.sub(r""(.)\1{2,}"", r""\1\1"", text)
+   text = re.sub(r""\b[ㄱ-ㅎㅏ-ㅣ]{1,}\b"", """", text)
+   text = text.strip()
+   return truncate_review(text, max_len=max_len)
+
+   self.df['review'] = self.df['review'].apply(clean_review)
+
+   def feature_engineering(self):
+   # 예시에서는 별도 feature_engineering 없음
+   pass
+
+   def save_to_database(self):
+   site_name = ""naver"" if ""naver"" in self.input_path else (""emart"" if ""emart"" in self.input_path else ""lotteon"")
+   filename = f""preprocessed_reviews_{site_name}.csv""
+   save_path = os.path.join(self.output_dir, filename)
+   self.df.to_csv(save_path, index=False), 진짜..."
+2025-07-23 02:06:35,경영 23 강예서(YBIGTA),AWS가 너무 무서워ㅓ...
+2025-07-23 02:06:35,경영 23 강예서(YBIGTA),나도 그래야겠다...
+2025-07-23 02:06:35,경영 23 강예서(YBIGTA),"그 머지, 지금 코드로 하면 csv파일은 생기는데, 네이버에 날짜랑 요일이 안 뜨거든?"
+2025-07-23 02:06:35,경영 23 강예서(YBIGTA),그거 시각화하는데 필요 없나...?
+2025-07-23 02:06:35,경영 23 강예서(YBIGTA),오..
+2025-07-23 02:13:57,경영 23 강예서(YBIGTA),오키오키..!
+2025-07-23 02:15:22,경영 23 강예서(YBIGTA),그래???
+2025-07-23 02:15:22,경영 23 강예서(YBIGTA),"왜지, 돌렸을 때 잘 돌아가?"
+2025-07-23 02:15:22,경영 23 강예서(YBIGTA),"아마 내가 그 {소속정보} {물건}{물건}{물건} 수정한 거도, 받아야될지도 몰라"
+2025-07-23 02:17:55,경영 23 강예서(YBIGTA),"내 emart_crawler.py 수정해서 새로 csv파일 만들었거든, 뭔가 뭔지 모르겠는데 오류가 나는데 내 리뷰 텍스트 처리하면서 오류 나는 거 같아서, 텍스트 저장 방식? 좀 수정해서, 그래서 아마 테스트 해보고 싶으면, 내 거 수정된 csv파일만 받아서, 넣어놓고, 돌려봐도 될듯...?"
+2025-07-23 02:17:55,경영 23 강예서(YBIGTA),"마저, 옼돜!"
+2025-07-23 02:17:55,경영 23 강예서(YBIGTA),"지금 파생변수만 만들었고, 그거도 {소속정보}는 안 떠서, 그거 수정 중이었어, 왜지??"
+2025-07-23 02:17:55,경영 23 강예서(YBIGTA),진짜 너무 어렵다
+2025-07-23 02:17:55,경영 23 강예서(YBIGTA),그럴까
+2025-07-23 02:36:16,경영 23 강예서(YBIGTA),set PYTHONPATH=../..
+2025-07-23 02:36:16,경영 23 강예서(YBIGTA),python main.py --output_dir ../../database --all
+2025-07-23 02:48:28,경영 23 강예서(YBIGTA),"from review_analysis.crawling.base_crawler import BaseCrawler
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from bs4 import BeautifulSoup
+import pandas as pd
+import time
+import os
+import csv
+
+
+class EmartCrawler(BaseCrawler):
+   """"""
+   Emart 제품 리뷰를 크롤링하여 날짜, 별점, 리뷰 텍스트를 수집하고 CSV로 저장하는 크롤러 클래스
+   """"""
+
+   def __init__(self, output_dir: str, max_page: int = 50):
+   super().__init__(output_dir)
+   self.url = ""https://emart.ssg.com/item/itemView.ssg?itemId={숫자}529473806&siteNo=6001&ckwhere=danawa&appPopYn=n&utm_medium=PCS&utm_source=danawa&utm_campaign=danawa_pcs&service_id=estimatedn""  # 예시 URL, 본인이 수집하려는 제품 URL로 변경
+   self.max_page = max_page
+   self.columns = ['date', 'rate', 'review']
+   self.values: list[list[str]] = []
+   self.driver = None
+   self.driver = self._start_browser()
+
+   def _start_browser(self):
+   chrome_options = Options()
+   chrome_options.add_experimental_option(""detach"", True)
+   chrome_options.add_experimental_option(""excludeSwitches"", [""enable-logging""])
+   driver = webdriver.Chrome(
+   service=Service(ChromeDriverManager().install()),
+   options=chrome_options
+   )
+   return driver
+
+   def start_browser(self):
+   pass
+
+   def scrape_reviews(self):
+   self.driver.get(self.url)
+   self.driver.implicitly_wait(3)
+
+   for page in range(1, self.max_page + 1):
+   print(f""{page}페이지 크롤링 중..."")
+
+   try:
+   self.driver.execute_script(""fn_GoCommentPage(arguments[0])"", page)
+   time.sleep(2)
+   except Exception as e:
+   print(f""{page}페이지 이동 실패: {e}"")
+   break
+
+   soup = BeautifulSoup(self.driver.page_source, ""html.parser"")
+   data_rows = soup.find_all('li', attrs={'class': 'rvw_expansion_panel v2'})
+
+   for row in data_rows:
+   blank = []
+
+   date = row.find('div', class_='rvw_item_label rvw_item_date')
+   blank.append(date.get_text(strip=True).replace('\n', ' ') if date else ""날짜 없음"")
+
+   rate = row.find('em')
+   blank.append(rate.get_text(strip=True).replace('\n', ' ') if rate else ""별점 없음"")
+
+   text = row.find('p', class_='rvw_item_text')
+   review = text.get_text(strip=True).replace('\n', ' ') if text else ""리뷰 없음""
+   review = review.replace('\r', ' ')
+   blank.append(review)
+
+   self.values.append(blank)
+
+   self.driver.quit()
+   print(""크롤링 완료"")
+
+   def save_to_database(self) -> None:
+   os.makedirs(self.output_dir, exist_ok=True)
+   df = pd.DataFrame(self.values, columns=self.columns)
+   output_file = os.path.join(self.output_dir, ""reviews_emart.csv"")
+   df.to_csv(output_file, index=False, encoding='utf-8-sig', quoting=csv.QUOTE_ALL)
+   print(f""저장 완료: {output_file}"")"
+2025-07-23 02:53:33,경영 23 강예서(YBIGTA),해결 됐어?
+2025-07-23 02:53:33,경영 23 강예서(YBIGTA),"에, 근데 이게 개수가 {숫자}{숫자}가 안 된다는 뜻인가?"
+2025-07-23 02:56:33,경영 23 강예서(YBIGTA),에 그래??
+2025-07-23 02:56:33,경영 23 강예서(YBIGTA),리뷰 텍스트 부분에서 말하는 거지?
+2025-07-23 03:19:56,경영 23 강예서(YBIGTA),"# 날짜 변환
+   self.df[""date""] = self.df[""date""].apply(convert_date)
+
+위에거를 아래거로 바꾸면 될듯!
+
+# 날짜 처리 및 요일 파생 변수 생성
+   self.df['date'] = self.df['date'].apply(convert_date)
+   self.df['weekday'] = pd.to_datetime(self.df['date'], errors='coerce').dt.day_name()"
+2025-07-23 04:09:05,경영 23 강예서(YBIGTA),"이미 한 것:
+데이터 전처리(파생변수 및 텍스트 정리 등)
+별점 분포 plot(바 차트)
+
+EDA/FE 시각화에서 해야하는 것
+- EDA (각 평균, 분산, 중앙값 등 구해보기)코드 제출이 필요한지 물어보기) {이름}{이름} {이름}{이름}씨가 하는 중
+- EDA 결과 시각화
+- 텍스트 벡터화
+- 비교분석(텍스트 비교)
+- 비교 분석 시각화
+- README 작성
+
+Crawling에서 해야하는 것
+- readme 작성
+- 전체 실행 해보고 전체 실행 방식 readme에 작성
+
+Git 과제에서 해야하는 것
+- 자기소개 작성
+- 풀리퀘 한 후에 review 스크린샷? 남기기"
+2025-08-05 02:58:22,경영 23 강예서(YBIGTA),"나는 API만들고 있었어, ㅋㅋㅋ먼저 자, 좋아좋아, 아니면 노션에 올려도 될듯!!"
+2025-08-05 02:58:22,경영 23 강예서(YBIGTA),ㅋㅋㅋ좋아좋아
+2025-08-06 16:19:11,경영 23 강예서(YBIGTA),"mongodb_connection.py, from fastapi import FastAPI, HTTPException, Path
+from fastapi.middleware.cors import CORSMiddleware
+import pandas as pd
+from pymongo import MongoClient
+from dotenv import load_dotenv
+import os
+
+# 환경변수 로드
+load_dotenv()
+
+# MongoDB 연결
+mongo_url = os.getenv(""MONGO_URL"")
+mongo_client = MongoClient(mongo_url)
+mongo_db = mongo_client.get_database(""crawlingdb"")
+
+# FastAPI 앱 생성
+app = FastAPI()
+
+# CORS 설정
+app.add_middleware(
+   CORSMiddleware,
+   allow_origins=[""*""],
+   allow_credentials=True,
+   allow_methods=[""*""],
+   allow_headers=[""*""],
+)
+
+# 전처리 클래스 임포트 (경로 조정 필요)
+from review_analysis.preprocessing.emart_processor import EmartProcessor
+from review_analysis.preprocessing.lotteon_processor import LotteOnProcessor
+from review_analysis.preprocessing.naver_processor import NaverProcessor
+
+PROCESSOR_MAP = {
+   ""emart"": EmartProcessor,
+   ""lotteon"": LotteOnProcessor,
+   ""naver"": NaverProcessor,
+}
+
+@app.post(""/review/preprocess/{site_name}"")
+async def preprocess(site_name: str = Path(..., description=""Site name, e.g. 'emart', 'lotteon', 'naver'"")):
+   if site_name not in PROCESSOR_MAP:
+   raise HTTPException(status_code=400, detail=f""Unknown site_name '{site_name}'"")
+
+   collection_name = f""reviews_{site_name}""
+   cursor = mongo_db[collection_name].find({})
+   data_list = list(cursor)
+
+   if not data_list:
+   raise HTTPException(status_code=404, detail=f""No data found in collection '{collection_name}'"")
+
+   df = pd.DataFrame(data_list)
+
+   processor_class = PROCESSOR_MAP[site_name]
+   processor = processor_class(collection_name=collection_name, output_dir=""output"")
+   processor.df = df
+
+   processor.preprocess()
+   processor.feature_engineering()
+   processor.save_to_database()
+
+   return {
+   ""message"": f""Preprocessing completed for {site_name}"",
+   ""processed_records"": len(processor.df)
+   }, emart_processor.py, import pandas as pd
+import os
+os.chdir(r'C:\Users\0723a\Desktop\YBI{사건}TA\{날짜} 방학 세션\YBIGTA_newbie_team_project-2')
+
+import re
+import json
+from datetime import datetime
+from database.mongodb_connection import mongo_db
+from review_analysis.preprocessing.base_processor import BaseDataProcessor
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+class EmartProcessor(BaseDataProcessor):
+   def __init__(self, collection_name: str, output_dir: str):
+   super().__init__(input_path=None, output_dir=output_dir)
+   
+   # MongoDB에서 데이터 읽기
+   cursor = mongo_db[collection_name].find({})
+   data_list = list(cursor)
+   self.df = pd.DataFrame(data_list)
+   self.collection_name = collection_name  # 멤버 변수로 저장
+
+   def preprocess(self):
+   self.df.columns = self.df.columns.str.strip()
+
+   # 날짜 변환 함수
+   def convert_date(date_str):
+   try:
+   date_str = date_str.strip()
+   if date_str.endswith("".""):
+   date_str = date_str[:-1]
+
+   for fmt in [""%y.%m.%d"", ""%y-%m-%d"", ""%Y-%m-%d"", ""%Y.%m.%d""]:
+   try:
+   dt = datetime.strptime(date_str, fmt)
+   return dt.strftime(""%y-%m-%d"")
+   except ValueError:
+   continue
+   return None
+   except:
+   return None
+   
+   def truncate_review(text, max_len=100, min_len=80):
+   if len(text) <= max_len:
+   return text
+
+   cut_text = text[:max_len]
+   last_space = cut_text.rfind("" "")
+
+   if last_space >= min_len:
+   return cut_text[:last_space]
+   else:
+   return cut_text
+
+   def clean_review(text, max_len=100):
+   if not isinstance(text, str):
+   return """"
+   
+   # 줄바꿈 제거
+   text = text.replace(""\n"", "" "").replace(""\r"", "" "")
+
+   # 특수기호 제거 
+   text = re.sub(r""[^\w\s가-힣.,!?]"", """", text)
+
+   # 중복 문자 줄이기
+   text = re.sub(r""(.)\1{2,}"", r""\1\1"", text)
+
+   # 자음/모음 단독 제거
+   text = re.sub(r""\b[ㄱ-ㅎㅏ-ㅣ]{1,}\b"", """", text)
+   
+   text = text.strip()
+
+   return truncate_review(text, max_len=max_len)
+
+   # 날짜 변환
+   self.df[""date""] = self.df[""date""].apply(convert_date)
+   
+   # 별점 float로 변환
+   self.df[""rate""] = self.df[""rate""].astype(float)
+   
+   # 리뷰 전처리
+   self.df[""review""] = self.df[""review""].apply(clean_review)
+
+   # 날짜 변환 (중복 호출 제거 가능하지만 유지)
+   self.df[""date""] = self.df[""date""].apply(convert_date)
+
+   def feature_engineering(self):
+   # 날짜 처리 및 요일 파생 변수 생성
+   self.df['weekday'] = pd.to_datetime(self.df['date'], format=""%y-%m-%d"", errors='coerce').dt.day_name()
+
+   # TF-IDF 벡터화
+   vectorizer = TfidfVectorizer(
+   max_features=300,
+   stop_words=None,
+   token_pattern=r""(?u)\b\w+\b""
+   )
+   tfidf_matrix = vectorizer.fit_transform(self.df[""review""])
+
+   # DataFrame 변환
+   tfidf_df = pd.DataFrame(tfidf_matrix.toarray(), columns=vectorizer.get_feature_names_out())
+
+   # 저장용 보관
+   self.vectorizer = vectorizer
+   self.tfidf_matrix = tfidf_matrix
+   self.tfidf_df = tfidf_df
+
+   def save_to_database(self):
+   if hasattr(self, ""df"") and not self.df.empty:
+   collection_name = getattr(self, ""collection_name"", None)
+   if collection_name is None:
+   collection_name = ""reviews_emart""
+
+   collection = mongo_db[collection_name]
+
+   # 기존 데이터 삭제 (옵션)
+   collection.delete_many({})
+
+   # DataFrame을 딕셔너리 리스트로 변환하여 삽입
+   data_list = self.df.to_dict(orient=""records"")
+   result = collection.insert_many(data_list)
+   print(f""MongoDB에 {len(result.inserted_ids)}개 문서 저장 완료: {collection_name}"")
+   else:
+   print(""저장할 데이터가 없습니다.""), lotteon_processor.py, import pandas as pd
+import os
+os.chdir(r'C:\Users\0723a\Desktop\YBI{사건}TA\{날짜} 방학 세션\YBIGTA_newbie_team_project-2')
+import re
+import json
+from datetime import datetime
+from database.mongodb_connection import mongo_db
+from review_analysis.preprocessing.base_processor import BaseDataProcessor
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+class LotteOnProcessor(BaseDataProcessor):
+   def __init__(self, collection_name: str, output_dir: str):
+   super().__init__(input_path=None, output_dir=output_dir)
+   
+   # MongoDB에서 데이터 읽기
+   cursor = mongo_db[collection_name].find({})
+   data_list = list(cursor)
+   self.df = pd.DataFrame(data_list)
+   self.collection_name = collection_name  # 멤버 변수로 저장
+
+   def preprocess(self):
+   self.df.columns = self.df.columns.str.strip()
+
+   # 날짜 변환 함수
+   def convert_date(date_str):
+   try:
+   date_str = date_str.strip()
+   if date_str.endswith("".""):
+   date_str = date_str[:-1]
+
+   for fmt in [""%y.%m.%d"", ""%y-%m-%d"", ""%Y-%m-%d"", ""%Y.%m.%d""]:
+   try:
+   dt = datetime.strptime(date_str, fmt)
+   return dt.strftime(""%y-%m-%d"")
+   except ValueError:
+   continue
+   return None
+   except:
+   return None
+   
+   def truncate_review(text, max_len=100, min_len=80):
+   if len(text) <= max_len:
+   return text
+
+   cut_text = text[:max_len]
+   last_space = cut_text.rfind("" "")
+
+   if last_space >= min_len:
+   return cut_text[:last_space]
+   else:
+   return cut_text
+
+   def clean_review(text, max_len=100):
+   if not isinstance(text, str):
+   return """"
+   
+   # 줄바꿈 제거
+   text = text.replace(""\n"", "" "").replace(""\r"", "" "")
+
+   # 특수기호 제거 
+   text = re.sub(r""[^\w\s가-힣.,!?]"", """", text)
+
+   # 중복 문자 줄이기
+   text = re.sub(r""(.)\1{2,}"", r""\1\1"", text)
+
+   # 자음/모음 단독 제거
+   text = re.sub(r""\b[ㄱ-ㅎㅏ-ㅣ]{1,}\b"", """", text)
+   
+   text = text.strip()
+
+   return truncate_review(text, max_len=max_len)
+
+   # 날짜 변환
+   self.df[""date""] = self.df[""date""].apply(convert_date)
+   
+   # 별점 float로 변환
+   self.df[""rate""] = self.df[""rate""].astype(float)
+   
+   # 리뷰 전처리
+   self.df[""review""] = self.df[""review""].apply(clean_review)
+
+   # 날짜 변환 (중복 호출 제거 가능하지만 유지)
+   self.df[""date""] = self.df[""date""].apply(convert_date)
+
+   def feature_engineering(self):
+   # 날짜 처리 및 요일 파생 변수 생성
+   self.df['weekday'] = pd.to_datetime(self.df['date'], format=""%y-%m-%d"", errors='coerce').dt.day_name()
+
+   # TF-IDF 벡터화
+   vectorizer = TfidfVectorizer(
+   max_features=300,
+   stop_words=None,
+   token_pattern=r""(?u)\b\w+\b""
+   )
+   tfidf_matrix = vectorizer.fit_transform(self.df[""review""])
+
+   # DataFrame 변환
+   tfidf_df = pd.DataFrame(tfidf_matrix.toarray(), columns=vectorizer.get_feature_names_out())
+
+   # 저장용 보관
+   self.vectorizer = vectorizer
+   self.tfidf_matrix = tfidf_matrix
+   self.tfidf_df = tfidf_df
+
+   def save_to_database(self):
+   if hasattr(self, ""df"") and not self.df.empty:
+   collection_name = getattr(self, ""collection_name"", None)
+   if collection_name is None:
+   collection_name = ""reviews_emart""
+
+   collection = mongo_db[collection_name]
+
+   # 기존 데이터 삭제 (옵션)
+   collection.delete_many({})
+
+   # DataFrame을 딕셔너리 리스트로 변환하여 삽입
+   data_list = self.df.to_dict(orient=""records"")
+   result = collection.insert_many(data_list)
+   print(f""MongoDB에 {len(result.inserted_ids)}개 문서 저장 완료: {collection_name}"")
+   else:
+   print(""저장할 데이터가 없습니다.""), naver_processor.py, import pandas as pd
+import os
+os.chdir(r'C:\Users\0723a\Desktop\YBI{사건}TA\{날짜} 방학 세션\YBIGTA_newbie_team_project-2')
+import re
+import json
+from datetime import datetime
+from database.mongodb_connection import mongo_db
+from review_analysis.preprocessing.base_processor import BaseDataProcessor
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+class NaverProcessor(BaseDataProcessor):
+   def __init__(self, collection_name: str, output_dir: str):
+   super().__init__(input_path=None, output_dir=output_dir)
+   
+   # MongoDB에서 데이터 읽기
+   cursor = mongo_db[collection_name].find({})
+   data_list = list(cursor)
+   self.df = pd.DataFrame(data_list)
+   self.collection_name = collection_name  # 멤버 변수로 저장
+
+   def preprocess(self):
+   self.df.columns = self.df.columns.str.strip()
+
+   # 날짜 변환 함수
+   def convert_date(date_str):
+   try:
+   date_str = date_str.strip()
+   if date_str.endswith("".""):
+   date_str = date_str[:-1]
+
+   for fmt in [""%y.%m.%d"", ""%y-%m-%d"", ""%Y-%m-%d"", ""%Y.%m.%d""]:
+   try:
+   dt = datetime.strptime(date_str, fmt)
+   return dt.strftime(""%y-%m-%d"")
+   except ValueError:
+   continue
+   return None
+   except:
+   return None
+   
+   def truncate_review(text, max_len=100, min_len=80):
+   if len(text) <= max_len:
+   return text
+
+   cut_text = text[:max_len]
+   last_space = cut_text.rfind("" "")
+
+   if last_space >= min_len:
+   return cut_text[:last_space]
+   else:
+   return cut_text
+
+   def clean_review(text, max_len=100):
+   if not isinstance(text, str):
+   return """"
+   
+   # 줄바꿈 제거
+   text = text.replace(""\n"", "" "").replace(""\r"", "" "")
+
+   # 특수기호 제거 
+   text = re.sub(r""[^\w\s가-힣.,!?]"", """", text)
+
+   # 중복 문자 줄이기
+   text = re.sub(r""(.)\1{2,}"", r""\1\1"", text)
+
+   # 자음/모음 단독 제거
+   text = re.sub(r""\b[ㄱ-ㅎㅏ-ㅣ]{1,}\b"", """", text)
+   
+   text = text.strip()
+
+   return truncate_review(text, max_len=max_len)
+
+   # 날짜 변환
+   self.df[""date""] = self.df[""date""].apply(convert_date)
+   
+   # 별점 float로 변환
+   self.df[""rate""] = self.df[""rate""].astype(float)
+   
+   # 리뷰 전처리
+   self.df[""review""] = self.df[""review""].apply(clean_review)
+
+   # 날짜 변환 (중복 호출 제거 가능하지만 유지)
+   self.df[""date""] = self.df[""date""].apply(convert_date)
+
+   def feature_engineering(self):
+   # 날짜 처리 및 요일 파생 변수 생성
+   self.df['weekday'] = pd.to_datetime(self.df['date'], format=""%y-%m-%d"", errors='coerce').dt.day_name()
+
+   # TF-IDF 벡터화
+   vectorizer = TfidfVectorizer(
+   max_features=300,
+   stop_words=None,
+   token_pattern=r""(?u)\b\w+\b""
+   )
+   tfidf_matrix = vectorizer.fit_transform(self.df[""review""])
+
+   # DataFrame 변환
+   tfidf_df = pd.DataFrame(tfidf_matrix.toarray(), columns=vectorizer.get_feature_names_out())
+
+   # 저장용 보관
+   self.vectorizer = vectorizer
+   self.tfidf_matrix = tfidf_matrix
+   self.tfidf_df = tfidf_df
+
+   def save_to_database(self):
+   if hasattr(self, ""df"") and not self.df.empty:
+   collection_name = getattr(self, ""collection_name"", None)
+   if collection_name is None:
+   collection_name = ""reviews_emart""
+
+   collection = mongo_db[collection_name]
+
+   # 기존 데이터 삭제 (옵션)
+   collection.delete_many({})
+
+   # DataFrame을 딕셔너리 리스트로 변환하여 삽입
+   data_list = self.df.to_dict(orient=""records"")
+   result = collection.insert_many(data_list)
+   print(f""MongoDB에 {len(result.inserted_ids)}개 문서 저장 완료: {collection_name}"")
+   else:
+   print(""저장할 데이터가 없습니다."")"
+2025-08-06 16:21:29,경영 23 강예서(YBIGTA),uvicorn database.mongodb_connection:app
+2025-08-06 17:49:59,경영 23 강예서(YBIGTA),"{시간}{시간}{시간}, 나 이제 약속 가봐야될 거 같아서 ㅠㅠ, 일단 노션에 내 부분 수정사항은 작성해놨어..!"
+2025-08-06 17:57:02,경영 23 강예서(YBIGTA),웅웅...!
+2025-08-06 20:05:25,경영 23 강예서(YBIGTA),dockerfile을 보니까 언니가 ㄱ기에 main으로 API를 실행하게 작성해놔서 main에 mongodb_connection내용이 들어가 있는 거 같아
+2025-08-06 20:11:59,경영 23 강예서(YBIGTA),"웅우, 에, 진짜???"
+2025-08-06 20:11:59,경영 23 강예서(YBIGTA),다행쓰
+2025-08-06 20:13:12,경영 23 강예서(YBIGTA),"아 내가 지금 해보고 있는데, 왜 안 되나 했더니 내가 메인을 클론해서 그런거엿어, 헉 ㅇ{숫자}{숫자}오키, 나는 일단은 {이름}언니 {이름}치를 클론해오는 거부터 해볼게 ㅋㅋㅋ"
+2025-08-06 20:21:49,경영 23 강예서(YBIGTA),나 docker run해보니까 pandas없어서 안 된다는 거 같은데 requirements에 pandas추가해야 하는 거 맞나...?!
+2025-08-06 20:31:54,경영 23 강예서(YBIGTA),오키오키
+2025-08-12 22:23:54,경영 23 강예서(YBIGTA),앗...
+2025-08-12 22:23:54,경영 23 강예서(YBIGTA),내가 {날짜} {시간}에 {주소}{주소}{주소}인 건데
+2025-08-12 22:25:26,경영 23 강예서(YBIGTA),{시간}{시간}{시간} {시간}{시간}{시간}{시간}는 내가 대면으로 시간을 뺄 수 있을 거 같아
+2025-08-12 22:27:10,경영 23 강예서(YBIGTA),"ㅋㅋㅋ{물건}{숫자}오키, 그렇구나"
+2025-08-15 22:10:12,경영 23 강예서(YBIGTA),{날짜} 뭐 없어..!!
+2025-08-15 22:10:12,경영 23 강예서(YBIGTA),옹 좋아좋아
+2025-08-15 22:12:21,경영 23 강예서(YBIGTA),오키도키!!!
+2025-08-16 00:56:04,경영 23 강예서(YBIGTA),오빠만 괜찮으면 만나서 하는 게 더 좋을 거 같기는 해..!
+2025-08-16 00:56:04,경영 23 강예서(YBIGTA),아아 그래?
+2025-08-16 00:56:04,경영 23 강예서(YBIGTA),"ㅋㅋㅋ맞긴해, 앗하, 함 볼게!"
+2025-08-16 00:56:04,경영 23 강예서(YBIGTA),그럼 {주소}에서 볼까?
+2025-08-16 00:56:04,경영 23 강예서(YBIGTA),{시간}{시간}?
+2025-08-16 00:56:04,경영 23 강예서(YBIGTA),{시간}{시간} {시간}? 그러면 {시간}{시간}{시간}에 {주소}에서 보자!
+2025-08-16 06:40:55,경영 23 강예서(YBIGTA),"일단 여기에서 {숫자}{숫자}{숫자}{숫자}{숫자},4,6 완료 했고, 원래 맞춤법 검사를 haspell을 이용해서 돌리려고 했었는데 계속 오류 나더라고.. 이거저거 시도해봤는데 안 돼서 일단 맞춤법 검사 패스하고 문장 결합까지 완료했고, 맞춤법은 hanspell말고 그냥 다른 모델을 쓰던지 직접 학습을 시키던지 해야될 듯 ㅠㅠ"
+2025-08-16 13:16:45,경영 23 강예서(YBIGTA),악ㅋㅋㅋ ㅠㅠ ㄱㅊㄱㅊ
+2025-08-16 16:29:26,경영 23 강예서(YBIGTA),나 {시간} {시간}{시간} {시간} {주소} 도착할 거 같아 ㅠㅠ
+2025-08-16 16:35:04,경영 23 강예서(YBIGTA),오키오키...!!
+2025-08-16 16:35:04,경영 23 강예서(YBIGTA),ㅋㅋㅋ오케오케
+2025-08-16 16:53:10,경영 23 강예서(YBIGTA),{소속정보}{소속정보}~
+2025-08-16 20:29:22,경영 23 강예서(YBIGTA),https://huggingface.co/Leo97/KoELECTRA-small-v3-modu-ner'
+2025-08-16 21:22:16,경영 23 강예서(YBIGTA),"import re
+from typing import Dict, List, Tuple
+from transformers import AutoTokenizer, AutoModelForTokenClassification, pipeline, BertTokenizerFast, BertForTokenClassification
+
+class PIIProcessor:
+   """"""KoELECTRA NER + kor-naver-ner-name을 결합한 하이브리드 PII 마스킹 프로세서""""""
+   
+   def __init__(self):
+   """"""PII 프로세서 초기화""""""
+   self.koelectra_model = None
+   self.koelectra_tokenizer = None
+   self.koelectra_pipeline = None
+   
+   self.name_model = None
+   self.name_tokenizer = None
+   self.name_pipeline = None
+   
+   self._load_models()
+   
+   def _load_models(self):
+   """"""{숫자} 모델을 로드합니다.""""""
+   try:
+   print("" KoELECTRA NER 모델 로드 중..."")
+   
+   # KoELECTRA NER 모델 로드
+   ko_model_name = ""Leo97/KoELECTRA-small-v3-modu-ner""
+   self.koelectra_tokenizer = AutoTokenizer.from_pretrained(ko_model_name)
+   self.koelectra_model = AutoModelForTokenClassification.from_pretrained(ko_model_name)
+   self.koelectra_pipeline = pipeline(""ner"", model=self.koelectra_model, tokenizer=self.koelectra_tokenizer)
+   
+   print("" KoELECTRA NER 모델 로드 완료!"")
+   
+   print("" kor-naver-ner-name 모델 로드 중..."")
+   
+   # kor-naver-ner-name 모델 로드
+   name_model_name = ""joon09/kor-naver-ner-name""
+   self.name_tokenizer = BertTokenizerFast.from_pretrained(name_model_name)
+   self.name_model = BertForTokenClassification.from_pretrained(name_model_name)
+   self.name_pipeline = pipeline(""ner"", model=self.name_model, tokenizer=self.name_tokenizer)
+   
+   print("" kor-naver-ner-name 모델 로드 완료!"")
+   
+   except Exception as e:
+   print(f"" 모델 로드 실패: {e}"")
+   self.koelectra_model = None
+   self.name_model = None
+   
+   def mask_pii(self, text: str) -> str:
+   """"""텍스트에서 PII를 마스킹합니다.""""""
+   if not self.koelectra_pipeline or not self.name_pipeline:
+   print("" 일부 모델을 사용할 수 없습니다."")
+   return text
+   
+   try:
+   # 1단계: kor-naver-ner-name으로 이름 인식
+   name_entities = self.name_pipeline(text, grouped_entities=True, aggregation_strategy='average')
+   
+   # 2단계: KoELECTRA로 다른 개체명 인식
+   other_entities = self.koelectra_pipeline(text)
+   
+   # 3단계: 두 결과를 결합하여 마스킹 적용
+   masked_text = self._apply_hybrid_masking(text, name_entities, other_entities)
+   
+   return masked_text
+   
+   except Exception as e:
+   print(f"" PII 마스킹 중 오류 발생: {e}"")
+   return text
+   
+   def _apply_hybrid_masking(self, text: str, name_entities: List[Dict], other_entities: List[Dict]) -> str:
+   """"""두 모델의 결과를 결합하여 마스킹을 적용합니다.""""""
+   if not name_entities and not other_entities:
+   return text
+   
+   # 모든 개체명을 하나의 리스트로 결합
+   all_entities = []
+   
+   # 이름 개체명 처리 (kor-naver-ner-name)
+   for entity in name_entities:
+   if entity['entity_group'] == 'PER':
+   all_entities.append({
+   'start': entity['start'],
+   'end': entity['end'],
+   'word': entity['word'],
+   'entity': 'B-PS',  # KoELECTRA 형식으로 통일
+   'score': entity['score'],
+   'source': 'name_model'
+   })
+   
+   # 다른 개체명 처리 (KoELECTRA)
+   for entity in other_entities:
+   # 이름이 아닌 개체명만 추가 (이름은 이미 처리됨)
+   if not entity['entity'].startswith('B-PS') and not entity['entity'].startswith('I-PS'):
+   all_entities.append({
+   'start': entity['start'],
+   'end': entity['end'],
+   'word': entity['word'],
+   'entity': entity['entity'],
+   'score': 1.0,  # KoELECTRA는 기본 점수
+   'source': 'koelectra'
+   })
+   
+   # 개체명을 위치"
