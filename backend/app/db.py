@@ -1,36 +1,28 @@
 #PostgreSQL 연결 
 import os, asyncpg
+from typing import Any, Iterable
 
-DB_URL = os.getenv("DB_URL")  # postgresql://user:pass@host:5432/gifts
-POOL_MIN = int(os.getenv("DB_POOL_MIN", "1"))
-POOL_MAX = int(os.getenv("DB_POOL_MAX", "2"))
-STMT_TIMEOUT_MS = os.getenv("PG_STMT_TIMEOUT_MS")  # "5000" 등
+_DB_URL = os.getenv("DB_URL")
+_POOL_MIN = int(os.getenv("DB_POOL_MIN", "1"))
+_POOL_MAX = int(os.getenv("DB_POOL_MAX", "10"))
+_STMT_TIMEOUT = int(os.getenv("PG_STMT_TIMEOUT_MS", "5000"))
 
 _pool: asyncpg.Pool | None = None
 
 async def get_pool() -> asyncpg.Pool:
     global _pool
     if _pool is None:
-        if not DB_URL:
-            raise RuntimeError("Missing DB_URL env")
-        server_settings = {}
-        if STMT_TIMEOUT_MS:
-            server_settings["statement_timeout"] = STMT_TIMEOUT_MS
+        if not _DB_URL:
+            raise RuntimeError("DB_URL 미설정")
         _pool = await asyncpg.create_pool(
-            dsn=DB_URL, min_size=POOL_MIN, max_size=POOL_MAX,
-            server_settings=server_settings or None,
+            dsn=_DB_URL,
+            min_size=_POOL_MIN,
+            max_size=_POOL_MAX,
+            statement_cache_size=0,
         )
     return _pool
 
-async def fetch(q: str, *args):
+async def fetch(sql: str, *args: Iterable[Any]):
     pool = await get_pool()
     async with pool.acquire() as conn:
-        return await conn.fetch(q, *args)
-    
-async def close_pool() -> None:
-    """애플리케이션 종료 시 풀 정리"""
-    global _pool
-    if _pool is not None:
-        await _pool.close()
-        _pool = None
-
+        return await conn.fetch(sql, *args, timeout=_STMT_TIMEOUT/1000.0)
