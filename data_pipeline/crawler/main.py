@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
-from kakaogift_crawler import KakaoGiftCrawler
+from .kakaogift_crawler import KakaoGiftCrawler
 
 if __name__ == "__main__":
     output_dir = os.path.join(os.getcwd(), "..", "raw_data")  

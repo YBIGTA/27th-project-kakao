@@ -13,7 +13,7 @@ from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, WebDriverException
 from webdriver_manager.chrome import ChromeDriverManager
 
-from base_crawler import BaseCrawler
+from .base_crawler import BaseCrawler
 
 
 class KakaoGiftCrawler(BaseCrawler):

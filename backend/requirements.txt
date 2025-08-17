@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+asyncpg
+aiohttp
+pydantic
+openai
+python-dotenv
+pandas
+numpy
+regex
+beautifulsoup4
+selenium
+webdriver-manager
+python-multipart

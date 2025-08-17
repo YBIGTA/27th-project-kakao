@@ -63,6 +63,7 @@ class PipelineEngine:
             for cat in subcats:
                 items = grouped.get(cat, [])
                 if items:
+                    # asyncpg.Record를 dict로 변환하는 올바른 방법
                     d = dict(items[0])
                     selections.append({
                         "sub_category": cat,

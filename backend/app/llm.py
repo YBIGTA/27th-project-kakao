@@ -47,14 +47,28 @@ def choose_one_per_category(profile: Dict[str, Any], analysis: Dict[str, Any], g
                 temperature=0.2,
                 response_format={"type":"json_object"},
             )
-            data = json.loads(resp.choices[0].message.content)
+            
+            # JSON 파싱 및 검증 강화
+            try:
+                content = resp.choices[0].message.content
+                data = json.loads(content)
+            except (json.JSONDecodeError, AttributeError, IndexError) as e:
+                print(f"LLM 응답 JSON 파싱 실패: {e}")
+                return _fallback_first(grouped)
+            
             sels = data.get("selections", [])
+            if not isinstance(sels, list):
+                print("LLM 응답에서 selections가 리스트가 아님")
+                return _fallback_first(grouped)
 
             # 후보 밖 금지 + 카테고리당 1개 보장
             name_sets = {c: {it["product_name"] for it in items} for c, items in grouped.items()}
             safe = []
             seen = set()
             for s in sels:
+                if not isinstance(s, dict):
+                    continue
+                    
                 cat, name = s.get("sub_category"), s.get("product_name")
                 if not cat or not name or cat in seen: continue
                 if name in name_sets.get(cat, set()):
@@ -71,5 +85,6 @@ def choose_one_per_category(profile: Dict[str, Any], analysis: Dict[str, Any], g
             return safe if safe else _fallback_first(grouped)
         else:
             raise RuntimeError("LLM provider not configured")
-    except Exception:
+    except Exception as e:
+        print(f"LLM 처리 중 오류 발생: {e}")
         return _fallback_first(grouped)
