@@ -1,0 +1,14 @@
+# API 키 설정
+# 실제 API 키를 입력하세요 (따옴표 없이)
+
+# Groq API 키 (https://console.groq.com/keys 에서 발급)
+GROQ_API_KEY=your_groq_api_key_here
+
+# OpenAI API 키 (https://platform.openai.com/api-keys 에서 발급)
+OPENAI_API_KEY=your_openai_api_key_here
+
+# 사용법:
+# 1. 이 파일을 .env로 복사
+# 2. your_groq_api_key_here 부분을 실제 Groq API 키로 교체
+# 3. your_openai_api_key_here 부분을 실제 OpenAI API 키로 교체
+# 4. .env 파일은 .gitignore에 추가되어 있어야 함 (API 키 보안)
