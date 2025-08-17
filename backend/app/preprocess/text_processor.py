@@ -6,10 +6,10 @@ TXT 파일 처리기
 import os
 import tempfile
 from pathlib import Path
-from preprocess.processor import KakaoProcessor
-from preprocess.utils.filter_utils import filter_recent_messages_pandas, filter_by_user
-from preprocess.utils.text_utils import preprocess_messages
-from preprocess.utils.sbd_processor import process_sbd_merge, SBDConfig
+from .processor import KakaoProcessor
+from .utils.filter_utils import filter_recent_messages_pandas, filter_by_user
+from .utils.text_utils import preprocess_messages
+from .utils.sbd_processor import process_sbd_merge, SBDConfig
 
 class TextProcessor:
     """TXT 파일을 처리하는 클래스"""
@@ -59,7 +59,7 @@ class TextProcessor:
             preprocessed_data = preprocess_messages(user_filtered_data)
             
             # 5. 익명화 처리 (민감정보 마스킹)
-            from preprocess.utils.anonymize import anonymize_messages
+            from .utils.anonymize import anonymize_messages
             anonymized_data = anonymize_messages(preprocessed_data)
             
             # 6. 어미 교정 (SBD 전)
