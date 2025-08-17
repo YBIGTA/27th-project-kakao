@@ -23,11 +23,11 @@ def _try_load_class(class_path: str) -> Optional[Callable]:
     return None
 
 _TXT_CLASSES = [
-    "preprocess.text_processor.TextProcessor",
+    "app.preprocess.text_processor.TextProcessor",
 ]
 
 _CSV_CLASSES = [
-    "preprocess.csv_processor.CSVProcessor",
+    "app.preprocess.csv_processor.CSVProcessor",
 ]
 
 def preprocess_any(file_bytes: bytes, filename: str | None, recent_days: int = 90) -> List[str]:

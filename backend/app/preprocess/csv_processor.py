@@ -7,10 +7,10 @@ import os
 import tempfile
 import io
 import csv
-from preprocess.utils.file_utils import read_csv_file
-from preprocess.utils.filter_utils import filter_recent_messages_pandas, filter_by_user
-from preprocess.utils.text_utils import preprocess_messages
-from preprocess.utils.sbd_processor import process_sbd_merge, SBDConfig
+from .utils.file_utils import read_csv_file
+from .utils.filter_utils import filter_recent_messages_pandas, filter_by_user
+from .utils.text_utils import preprocess_messages
+from .utils.sbd_processor import process_sbd_merge, SBDConfig
 
 class CSVProcessor:
     """CSV 파일을 처리하는 클래스"""
@@ -89,7 +89,7 @@ class CSVProcessor:
             
             # 5. 익명화 처리 (민감정보 마스킹)
             print(f"🔍 익명화 전: {len(preprocessed_data)}개")
-            from preprocess.utils.anonymize import anonymize_messages
+            from .utils.anonymize import anonymize_messages
             anonymized_data = anonymize_messages(preprocessed_data)
             print(f"🔍 익명화 후: {len(anonymized_data)}개")
             
