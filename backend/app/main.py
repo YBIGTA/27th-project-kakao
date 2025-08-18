@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from pydantic import BaseModel, Field
 from .pipeline import PipelineEngine
@@ -25,8 +25,9 @@ class Profile(BaseModel):
     budget_max: int = Field(..., ge=0)
 
 class Analysis(BaseModel):
-    subcats: List[str]                         # 1~3
+    subcats: List[str]                         # 0~3개
     evidence_by_cat: Dict[str, List[str]]      # {cat: [문장*최대3]}
+    message: Optional[str] = None              # 카테고리가 없을 때 메시지
 
 class Selection(BaseModel):
     sub_category: str
@@ -39,7 +40,7 @@ class Selection(BaseModel):
 class RecommendResponse(BaseModel):
     profile: Profile
     analysis: Analysis
-    selections: List[Selection]                # 카테고리별 1개씩
+    selections: List[Selection]                # 카테고리별 1개씩 (카테고리가 없으면 빈 리스트)
 
 # 엔드포인트 
 @app.post("/v1/recommendations", response_model=RecommendResponse)
