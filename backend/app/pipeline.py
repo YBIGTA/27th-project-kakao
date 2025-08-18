@@ -1,5 +1,5 @@
 from typing import Dict, Any, List
-from .preprocess_adapter import preprocess_any
+from .preprocess.main_processor import main
 from .gpu_client import get_gpu_client
 from .algorithm import decide_categories_and_evidence
 from .search import metadata_search_grouped
@@ -19,22 +19,31 @@ class PipelineEngine:
         budget_min: int,
         budget_max: int,
     ) -> Dict[str, Any]:
-        # 1) 전처리: CSV/TXT 자동 분기 (preprocess import)
-        sentences: List[str] = preprocess_any(file_bytes, filename)
-        if not sentences:
-            raise ValueError("유효한 문장을 찾지 못했습니다.")
+        # 1) 전처리: main_processor.py로 CSV 파일 생성
+        csv_file_path: str = main(file_bytes=file_bytes, filename=filename)
+        if not csv_file_path:
+            raise ValueError("전처리된 CSV 파일을 생성하지 못했습니다.")
 
-        # 2) GPU: 문장만 전달 → 문장별 원천 스코어(per_sentence) 수신
-        gpu_out = await self.gpu.infer(sentences)
+        # 2) GPU: CSV 파일 전달 → 문장별 원천 스코어(sentences) 수신
+        gpu_out = await self.gpu.infer(csv_file_path)
         if not gpu_out:
             raise ValueError("GPU 결과 없음")
 
-        # 3) Gate: 1~3개 sub_category + 카테고리별 근거문장 3개
+        # 3) Gate: 카테고리 선정 및 근거문장 추출
         gate = decide_categories_and_evidence(gpu_out)
         subcats = gate.get("subcats", [])
         evidence_by_cat = gate.get("evidence_by_cat", {})
+        
+        # 카테고리가 없으면 맞춤형 추천 어려움 메시지 반환
         if not subcats:
-            raise ValueError("카테고리 산출 실패")
+            return {
+                "analysis": {
+                    "subcats": [],
+                    "evidence_by_cat": {},
+                    "message": "정보가 충분하지 않아서 맞춤형 추천을 하기 어렵습니다."
+                },
+                "selections": []
+            }
 
         # 4) SQL 메타 필터(카테고리/예산) → 카테고리별 후보 목록
         grouped = await metadata_search_grouped(
@@ -57,7 +66,7 @@ class PipelineEngine:
 
         try:
             selections = llm.choose_one_per_category(profile, analysis, grouped)
-        except Exception:
+        except Exception as e:
             # 폴백: 각 카테고리 첫 번째
             selections = []
             for cat in subcats:
