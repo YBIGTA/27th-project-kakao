@@ -41,7 +41,7 @@ class PipelineEngine:
         파이프라인을 실행합니다.
         
         Args:
-            file_bytes: 업로드된 파일 바이트
+            file_bytes: 파일 bytes
             filename: 파일명
             age: 사용자 연령
             gender: 사용자 성별
@@ -74,9 +74,10 @@ class PipelineEngine:
             }
             
             # 2) 상위 카테고리 노드
-            probs_upper, upper_reasoning = self.upper_node.process(
-                preprocessed_data, user_profile
+            upper_result = self.upper_node.process(
+                preprocessed_data
             )
+            probs_upper, upper_reasoning, upper_confidence_data = upper_result
             
             if not probs_upper:
                 return {
@@ -88,9 +89,10 @@ class PipelineEngine:
                 }
             
             # 3) 하위 카테고리 노드
-            probs_lower_by_parent, lower_reasoning = self.lower_node.process(
-                preprocessed_data, user_profile, probs_upper
+            lower_result = self.lower_node.process(
+                preprocessed_data
             )
+            probs_lower_by_parent, lower_reasoning, lower_confidence_data = lower_result
             
             if not probs_lower_by_parent:
                 return {
@@ -133,7 +135,10 @@ class PipelineEngine:
             
             # 6) 상품 랭킹/가드레일 노드
             final_products = await self.product_node.select_final_products(
-                candidates, user_profile
+                candidates, user_profile, 
+                sentence_context=self._extract_sentence_context(
+                    upper_confidence_data, lower_confidence_data
+                )
             )
             
             # 결과 구성
@@ -159,3 +164,53 @@ class PipelineEngine:
                 },
                 "selections": []
             }
+    
+    def _extract_sentence_context(
+        self,
+        upper_confidence_data: Dict[str, Any] = None,
+        lower_confidence_data: Dict[str, Any] = None
+    ) -> List[str]:
+        """
+        문장 라우팅 정보를 추출합니다.
+        LLM 응답의 evidence와 reason 필드를 활용합니다.
+        
+        Args:
+            upper_confidence_data: 상위 카테고리 confidence 데이터
+            lower_confidence_data: 하위 카테고리 confidence 데이터
+            
+        Returns:
+            List[str]: 관련 문장들
+        """
+        sentence_context = []
+        
+        # 1. 상위 카테고리 evidence 추출
+        if upper_confidence_data:
+            for cat_name, cat_data in upper_confidence_data.items():
+                if isinstance(cat_data, dict):
+                    # evidence 필드에서 문장 추출
+                    evidence = cat_data.get("evidence", [])
+                    for ev in evidence:
+                        if isinstance(ev, dict) and "text" in ev:
+                            sentence_context.append(f"[{cat_name}] {ev['text']}")
+                    
+                    # reason 필드 추가
+                    reason = cat_data.get("reason", "")
+                    if reason:
+                        sentence_context.append(f"[{cat_name} 근거] {reason}")
+        
+        # 2. 하위 카테고리 evidence 추출
+        if lower_confidence_data:
+            for cat_path, cat_data in lower_confidence_data.items():
+                if isinstance(cat_data, dict):
+                    # evidence 필드에서 문장 추출
+                    evidence = cat_data.get("evidence", [])
+                    for ev in evidence:
+                        if isinstance(ev, dict) and "text" in ev:
+                            sentence_context.append(f"[{cat_path}] {ev['text']}")
+                    
+                    # reason 필드 추가
+                    reason = cat_data.get("reason", "")
+                    if reason:
+                        sentence_context.append(f"[{cat_path} 근거] {reason}")
+        
+        return sentence_context

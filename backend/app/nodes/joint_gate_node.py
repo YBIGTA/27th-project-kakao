@@ -1,9 +1,10 @@
 """
 결합+게이트 연산 노드 (joint_gate_node.py)
 
+Input: probs_upper, probs_lower_by_parent, upper_reasoning, lower_reasoning
 Process:
-    - 로그 가중합 결합
-    - joint로 정렬 → Top-K 하위 카테고리
+    - 로그 가중합 결합: joint(p,c) = α·log P(p|x) + β·log P(c|p,x)
+    - joint score로 정렬 → Top-K 하위 카테고리
 Output: leaf=[{parent,child,score}] (Top-K), merged_reasoning
 """
 

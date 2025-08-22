@@ -17,7 +17,6 @@ A식으로 confidence를 계산한다. 내부 단계적 추론(CoT)은 수행하
     def create_user_prompt(
         self, 
         conversation_text: str, 
-        user_profile: dict,
         top_category_list: list,
         weights: dict = None,
         tau_days: int = 30,
