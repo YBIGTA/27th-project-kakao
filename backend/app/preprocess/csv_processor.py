@@ -11,6 +11,7 @@ from .utils.file_utils import read_csv_file
 from .utils.filter_utils import filter_recent_messages_pandas, filter_by_user
 from .utils.text_utils import preprocess_messages
 from .utils.sbd_processor import process_sbd_merge, SBDConfig
+from typing import Optional
 
 class CSVProcessor:
     """CSV 파일을 처리하는 클래스"""
@@ -18,6 +19,7 @@ class CSVProcessor:
     def __init__(self, input_file: str, user_name: str):
         self.input_file = input_file
         self.user_name = user_name
+        self._temp_file: Optional[str] = None
     
     @classmethod
     def from_bytes(cls, file_bytes: bytes, user_name: str):
@@ -110,5 +112,5 @@ class CSVProcessor:
             }
         finally:
             # 임시 파일 정리
-            if hasattr(self, '_temp_file') and os.path.exists(self._temp_file):
+            if hasattr(self, '_temp_file') and self._temp_file and os.path.exists(self._temp_file):
                 os.unlink(self._temp_file)

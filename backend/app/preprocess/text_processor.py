@@ -10,6 +10,7 @@ from .processor import KakaoProcessor
 from .utils.filter_utils import filter_recent_messages_pandas, filter_by_user
 from .utils.text_utils import preprocess_messages
 from .utils.sbd_processor import process_sbd_merge, SBDConfig
+from typing import Optional
 
 class TextProcessor:
     """TXT 파일을 처리하는 클래스"""
@@ -19,6 +20,7 @@ class TextProcessor:
         self.output_dir = output_dir
         self.user_name = user_name
         self.output_csv = os.path.join(output_dir, "temp_converted.csv")
+        self._temp_file: Optional[str] = None
     
     @classmethod
     def from_bytes(cls, file_bytes: bytes, output_dir: str, user_name: str):
@@ -78,7 +80,7 @@ class TextProcessor:
             }
         finally:
             # 임시 파일들 정리
-            if hasattr(self, '_temp_file') and os.path.exists(self._temp_file):
+            if hasattr(self, '_temp_file') and self._temp_file and os.path.exists(self._temp_file):
                 os.unlink(self._temp_file)
             if os.path.exists(self.output_csv):
                 os.remove(self.output_csv)

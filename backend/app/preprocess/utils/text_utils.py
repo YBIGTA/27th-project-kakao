@@ -170,7 +170,7 @@ def drop_deleted_messages(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def drop_noise_rows(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """노이즈 행들을 삭제합니다."""
-    filtered_data = []
+    filtered_data: List[Dict[str, Any]] = []
     
     for item in data:
         message = item.get('message', '')
@@ -263,7 +263,7 @@ def truncate_repeats(text: str) -> str:
 
 def drop_only_k_chars(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """ㅋ/ㄱ/ㅎ/ㅌ/ㅠ/큐로만 이루어진 행을 삭제합니다."""
-    filtered_data = []
+    filtered_data: List[Dict[str, Any]] = []
     
     for item in data:
         message = item.get('message', '')

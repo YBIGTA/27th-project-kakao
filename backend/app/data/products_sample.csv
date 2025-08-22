@@ -1,0 +1,11 @@
+id,title,brand,price,category_parent,category_child,url,popularity
+1,드립백 커피 선물세트,BlueBean,32000,식품,커피/차/음료,http://example.com/1,85
+2,아이스크림 기프트콘,ChillBar,35000,교환권,아이스크림/빙수,http://example.com/2,70
+3,퍼퓸 핸드크림 세트,ScentLab,34000,뷰티,바디,http://example.com/3,65
+4,미니 오 드 퍼퓸,AROMA,39000,뷰티,향수,http://example.com/4,90
+5,티 샘플러 12종,TeaHouse,30000,식품,커피/차/음료,http://example.com/5,55
+6,캔들 & 디퓨저 세트,CalmHome,38000,리빙/도서,캔들디퓨저 인센스,http://example.com/6,60
+7,프로틴 RTD 6팩,FitFuel,36000,식품,가공/보양식,http://example.com/7,45
+8,베이커리 모바일 교환권,Breadly,33000,교환권,베이커리/도넛/떡,http://example.com/8,50
+9,컵커피 10입,GigaCafe,31000,식품,커피/차/음료,http://example.com/9,40
+10,바디워시 & 로션 세트,Freshy,37000,뷰티,바디,http://example.com/10,52

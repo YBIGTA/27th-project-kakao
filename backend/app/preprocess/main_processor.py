@@ -8,15 +8,13 @@ import os
 import argparse
 import tempfile
 from pathlib import Path
+from typing import Union
 
-# 프로젝트 루트를 Python 경로에 추가
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
-
-from preprocess.config.settings import INPUT_FILE, OUTPUT_CSV, OUTPUT_DIR
-from preprocess.utils.file_utils import write_csv_file
-from preprocess.text_processor import TextProcessor
-from preprocess.csv_processor import CSVProcessor
+# 상대 import 사용
+from .config.settings import CSV_COLUMNS
+from .utils.file_utils import write_csv_file
+from .text_processor import TextProcessor
+from .csv_processor import CSVProcessor
 
 def detect_file_type(file_path: str) -> str:
     """파일 확장자를 기반으로 파일 타입을 감지합니다."""
@@ -80,6 +78,7 @@ def main(input_file_path: str = None, file_bytes: bytes = None, filename: str = 
         print(f"👤 선택된 사용자: {user_name}")
         
         # 파일 타입에 따라 적절한 프로세서 선택
+        processor: Union[CSVProcessor, TextProcessor]
         if file_type == 'csv':
             processor = CSVProcessor(input_path, user_name)
         else:
@@ -89,7 +88,7 @@ def main(input_file_path: str = None, file_bytes: bytes = None, filename: str = 
         result = processor.process()
         
         # 최종 CSV 저장
-        write_csv_file(result['data'], output_csv, ['date', 'user', 'message'])
+        write_csv_file(result['data'], output_csv, CSV_COLUMNS)
         
         print(f"✅ 완료: {output_csv}")
         print(f"📊 최종 결과: {result['final_count']}개 메시지")
@@ -111,20 +110,21 @@ def main_cli():
     parser.add_argument(
         '-i', '--input',
         type=str,
-        default=INPUT_FILE,
-        help=f'입력 카카오톡 파일 경로 (기본값: {INPUT_FILE})'
+        required=True,
+        help='입력 카카오톡 파일 경로'
     )
     
     parser.add_argument(
         '-o', '--output',
         type=str,
-        default=OUTPUT_DIR,
-        help=f'출력 디렉토리 경로 (기본값: {OUTPUT_DIR})'
+        default=None,
+        help='출력 디렉토리 경로 (기본값: 임시 디렉토리)'
     )
     
     parser.add_argument(
         '--user',
         type=str,
+        required=True,
         help='특정 사용자의 메시지만 필터링 (예: --user "홍길동")'
     )
     
@@ -135,14 +135,6 @@ def main_cli():
         if not os.path.exists(args.input):
             print(f"❌ 입력 파일을 찾을 수 없습니다: {args.input}")
             return 1
-        
-        # 사용자 이름 입력 받기 (명령줄 인자가 없으면)
-        if not args.user:
-            print("\n👤 대화 상대 이름을 입력하세요:")
-            args.user = input("사용자 이름: ").strip()
-            if not args.user:
-                print("❌ 사용자 이름을 입력해야 합니다.")
-                return 1
         
         # 메인 함수 호출
         output_csv = main(

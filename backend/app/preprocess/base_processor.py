@@ -19,10 +19,10 @@ class BaseProcessor(ABC):
     def __init__(self, input_file: str, output_file: str):
         self.input_file = input_file
         self.output_file = output_file
-        self.processed_data = []
-        self.current_date = None
-        self.current_time = None
-        self.current_sender = None
+        self.processed_data: List[Dict[str, Any]] = []
+        self.current_date: Optional[str] = None
+        self.current_time: Optional[str] = None
+        self.current_sender: Optional[str] = None
     
     def load_data(self) -> List[str]:
         """입력 파일에서 데이터를 로드합니다."""
@@ -48,7 +48,7 @@ class BaseProcessor(ABC):
         time = extract_time_from_line(line)
         sender = extract_sender_from_line(line)
         
-        if time and sender:
+        if time and sender and self.current_date:
             self.current_time = time
             self.current_sender = sender
             message_content = extract_message_content(line)

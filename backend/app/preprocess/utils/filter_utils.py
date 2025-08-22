@@ -53,11 +53,11 @@ def filter_recent_messages_pandas(
     max_date = df['date'].max()
     print(f"📅 데이터 날짜 범위: {min_date} ~ {max_date}")
     
-    # 현재 시간 기준으로 3개월 전 계산
+    # 현재 시간 기준으로 3개월 전 계산 (timezone 없이)
     now = pd.Timestamp.now()
     cutoff = now - pd.DateOffset(months=months)
     
-    print(f"🔍 3개월 필터링: {cutoff.strftime('%Y-%m-%d %H:%M:%S')} 이후")
+    print(f"🔍 {months}개월 필터링: {cutoff.strftime('%Y-%m-%d %H:%M:%S')} 이후")
     
     # 필터링
     original_count = len(df)
@@ -69,7 +69,11 @@ def filter_recent_messages_pandas(
         # 미래 날짜를 현재 시간으로 조정
         df.loc[df['date'] > now, 'date'] = now
     
-    filtered_df = df[df['date'] >= cutoff]
+    # datetime 타입을 맞춰서 비교 (timezone 정보 제거)
+    df['date'] = df['date'].dt.tz_localize(None)
+    cutoff_no_tz = cutoff.tz_localize(None)
+    
+    filtered_df = df[df['date'] >= cutoff_no_tz]
     filtered_count = len(filtered_df)
     
     print(f"📊 필터링 결과: {original_count}개 → {filtered_count}개 메시지")
