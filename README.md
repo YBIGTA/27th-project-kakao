@@ -310,37 +310,5 @@ python -c "from core.pipeline import run_pipeline; print('Success')"
 python -c "from core.nodes import *; print('All nodes imported successfully')"
 ```
 
-## 📊 **성능 지표**
 
-### **최적화 효과**
-- **프롬프트 생성**: 97% 감소 (66회 → 2회)
-- **메모리 사용**: 97% 감소
-- **처리 시간**: 30% 단축
-- **API 호출**: 효율적인 배치 처리
 
-### **처리 능력**
-- **전처리**: 3,587개 메시지 → 326개 정제된 문장
-- **LLM 분석**: 33개 배치로 효율적 처리
-- **상품 추천**: 299개 후보에서 5개 최적 선택
-- **응답 시간**: 평균 2-3분 (전체 파이프라인)
-
-## 🤝 **기여하기**
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
-
-## 📄 **라이선스**
-
-이 프로젝트는 MIT 라이선스 하에 배포됩니다. 자세한 내용은 `LICENSE` 파일을 참조하세요.
-
-## 📞 **문의**
-
-프로젝트에 대한 문의사항이 있으시면 이슈를 생성해 주세요.
-
----
-
-**🎯 현재 상태**: ✅ **완전 작동** - LLM 기반 스마트 선물 추천 시스템  
-**🚀 다음 목표**: 프론트엔드 연동 및 실시간 추천 서비스
