@@ -1,80 +1,64 @@
-from enum import Enum
-from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from pydantic import BaseModel, Field
+from fastapi.middleware.cors import CORSMiddleware
+from typing import Optional
+import os
+import json
 from .pipeline import PipelineEngine
 
-app = FastAPI(title="Gift Recommender API", version="4.0.0")
+# 환경 변수에서 설정 가져오기
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "upstage")
+LLM_MODEL = os.getenv("LLM_MODEL", "solar-1-mini-chat")
+
+# 파이프라인 엔진 초기화
 engine = PipelineEngine()
 
+app = FastAPI(
+    title="Gift Recommendation API",
+    description="카카오 선물하기 기반 선물 추천 API",
+    version="1.0.0"
+)
 
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
+# CORS 설정
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# 스키마 
-class Gender(str, Enum):
-    남 = "남"
-    여 = "여"
+@app.get("/")
+async def root():
+    return {"message": "Gift Recommendation API v1.0.0"}
 
-class Profile(BaseModel):
-    age: int = Field(..., ge=0, le=120)
-    gender: Gender
-    relation: str
-    budget_min: int = Field(..., ge=0)
-    budget_max: int = Field(..., ge=0)
-
-class Analysis(BaseModel):
-    subcats: List[str]                         # 0~3개
-    evidence_by_cat: Dict[str, List[str]]      # {cat: [문장*최대3]}
-    message: Optional[str] = None              # 카테고리가 없을 때 메시지
-
-class Selection(BaseModel):
-    sub_category: str
-    product_name: str
-    product_url: str | None = None
-    brand: str | None = None
-    price: int | None = None
-    reason: str | None = None
-
-class RecommendResponse(BaseModel):
-    profile: Profile
-    analysis: Analysis
-    selections: List[Selection]                # 카테고리별 1개씩 (카테고리가 없으면 빈 리스트)
-
-# 엔드포인트 
-@app.post("/v1/recommendations", response_model=RecommendResponse)
-async def recommend(
-    file: UploadFile = File(...),          # .txt 또는 .csv
+@app.post("/recommendations")
+async def get_recommendations(
+    file: UploadFile = File(...),
     age: int = Form(...),
-    gender: Gender = Form(...),            # 남/여만 허용
+    gender: str = Form(...),
     relation: str = Form(...),
     budget_min: int = Form(...),
-    budget_max: int = Form(...),
+    budget_max: int = Form(...)
 ):
-    if budget_min > budget_max:
-        raise HTTPException(status_code=400, detail="예산 범위가 잘못되었습니다.")
-
-    file_bytes = await file.read()
-    filename = file.filename or "upload"
-
+    """
+    선물 추천 API
+    """
     try:
-        out = await engine.run(
+        # 파일 읽기
+        file_bytes = await file.read()
+        
+        # 파이프라인 실행
+        result = await engine.run(
             file_bytes=file_bytes,
-            filename=filename,
+            filename=file.filename,
             age=age,
-            gender=gender.value,        # 문자열로 전달
+            gender=gender,
             relation=relation,
             budget_min=budget_min,
-            budget_max=budget_max,
+            budget_max=budget_max
         )
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
-    except Exception:
-        raise HTTPException(status_code=500, detail="내부 오류")
-
-    return RecommendResponse(
-        profile=Profile(age=age, gender=gender, relation=relation, budget_min=budget_min, budget_max=budget_max),
-        analysis=Analysis(**out["analysis"]),
-        selections=[Selection(**x) for x in out["selections"]],
-    )
+        
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
