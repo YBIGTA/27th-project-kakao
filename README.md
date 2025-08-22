@@ -1,10 +1,10 @@
 
-# 🎁 **카카오톡 선물 추천 AI 시스템**
+# 🎁 **카카오톡 대화 기반 맞춤형 선물 추천 시스템**
 
-카카오톡 대화내역을 분석하여 개인화된 선물을 추천하는 AI 파이프라인입니다.  
-**Upstage API**와 **LangGraph**를 사용하여 구현했습니다.
+카카오톡 대화내역을 분석하여 개인 맞춤형 선물을 추천하는 서비스입니다.  
 
-## 🚀 **빠른 시작**
+
+## 🚀 **작동 방법**
 
 ### **1. 환경 설정**
 
@@ -16,26 +16,21 @@ cd 27th-project-kakao/backend
 # 의존성 설치
 pip install -r requirements.txt
 
-# 환경변수 설정
-export DB_URL="postgresql://username:password@localhost:5432/database"
-export UPSTAGE_API_KEY="your_api_key_here"
-export UPSTAGE_BASE_URL="https://api.upstage.ai/v1"
-```
 
 ### **2. 실행**
 
 ```bash
 cd app
 
-# 기본 실행 (chatt.csv 사용)
+# 기본 실행 
 python run_preprocess_pipeline.py \
-  --input chatt.csv \
-  --user "구남혁" \
-  --age 23 \
-  --gender M \
-  --relation "친구" \
-  --budget-min 30000 \
-  --budget-max 50000
+  --input 파일명.csv \
+  --user "상대방 이름" \
+  --age 나이 \
+  --gender F/M \
+  --relation "관계" \
+  --budget-min 예산 하한 \
+  --budget-max 예산 상한
 ```
 
 ## 📁 **프로젝트 구조**
@@ -107,28 +102,28 @@ graph TD
 - **`db_filter_node`**: 예산 범위 내 상품 필터링 및 조회
 - **`product_node`**: LLM 기반 스마트 선택 → 실패 시 룰 기반 폴백
 
-## ⚙️ **환경변수 설정**
+## ⚙️ **env 설정**
 
 ```bash
 # LLM 설정
-export UPSTAGE_API_KEY="your_api_key_here"
-export UPSTAGE_BASE_URL="https://api.upstage.ai/v1"
-export UPSTAGE_CHAT_MODEL="solar-1-mini-2024-08-28"
+UPSTAGE_API_KEY="your_api_key_here"
+UPSTAGE_BASE_URL="https://api.upstage.ai/v1"
+UPSTAGE_CHAT_MODEL="solar-1-mini-2024-08-28"
 
 # 데이터베이스 설정
 export DB_URL="postgresql://username:password@localhost:5432/database"
 
 # 성능 설정
-export MAX_CONCURRENCY=8
-export CACHE_TTL_SECS=3600
-export TIMEOUT_SECS=30
+MAX_CONCURRENCY=8
+CACHE_TTL_SECS=3600
+TIMEOUT_SECS=30
 
 # 하이퍼파라미터
-export ENTROPY_TARGET_PARENT=0.7
-export ENTROPY_TARGET_CHILD=0.8
-export ALPHA0=0.3
-export BETA=0.5
-export GAMMA=1.0
+ENTROPY_TARGET_PARENT=0.7
+ENTROPY_TARGET_CHILD=0.8
+ALPHA0=0.3
+BETA=0.5
+GAMMA=1.0
 ```
 
 ## 🗃️ **데이터베이스 연동**
@@ -155,9 +150,9 @@ CREATE INDEX idx_sub_category ON products(sub_category);
 CREATE INDEX idx_price ON products(price);
 ```
 
-### **샘플 데이터**
+### **데이터 샘플**
 
-```sql
+```sql (Postgre-sql)
 INSERT INTO products (top_category, sub_category, brand, product_name, price, satisfaction_pct, review_count, wish_count, product_url) VALUES
 ('식품', '과일/견과/채소', '대디스팜', '프리미엄 골드망고 2.8kg', 47800, 98.0, 1130, 11050, 'https://gift.kakao.com/product/9324040'),
 ('식품', '축산/수산', '미트팩토리', '프라임냉장 핑크 스테이크 600g', 39800, 99.0, 1430, 20270, 'https://gift.kakao.com/product/7201451');
@@ -165,7 +160,7 @@ INSERT INTO products (top_category, sub_category, brand, product_name, price, sa
 
 ## 📋 **입력 데이터 형식**
 
-### **카카오톡 대화 CSV** (`--input` 파라미터):
+### **카카오톡 대화 CSV** :
 
 ```csv
 Date,User,Message
@@ -177,12 +172,12 @@ Date,User,Message
 ### **사용자 프로필** (명령행 인자):
 
 ```bash
---user "구남혁"          # 대상 사용자
---age 23                 # 나이
---gender M               # 성별 (M/F)
---relation "친구"        # 관계
---budget-min 30000       # 최소 예산
---budget-max 50000       # 최대 예산
+--user            # 대상 사용자
+--age             # 나이
+--gender          # 성별 (M/F)
+--relation        # 관계
+--budget-min      # 최소 예산
+--budget-max      # 최대 예산
 ```
 
 ## 🎯 **출력 형식**
@@ -224,20 +219,13 @@ Date,User,Message
 ### **2. LLM 기반 분석**
 - **상위 카테고리 분석**: 대화 내용의 상위 카테고리 점수 계산
 - **하위 카테고리 분석**: 구체적인 선물 카테고리 점수 계산
-- **배치 처리**: 33개 배치로 효율적인 API 호출
-- **프롬프트 최적화**: 템플릿 1회 생성, 33번 재사용
 
-### **3. 스마트 상품 선택**
+### **3. 상품 선택**
 - **1차: LLM 스마트 선택**: 맥락과 근거를 고려한 지능적 선택
 - **2차: 룰 기반 폴백**: LLM 실패 시 안전한 폴백 로직
 - **다양성 보장**: 카테고리별 다양성과 브랜드 중복 제거
 - **프로필 적합성**: 나이, 성별, 관계 기반 맞춤형 추천
 
-### **4. 성능 최적화**
-- **캐싱 시스템**: LLM 응답 캐싱으로 중복 API 호출 방지
-- **동시성 제어**: `MAX_CONCURRENCY`로 API 호출 제한
-- **배치 처리**: 문장을 묶어서 효율적인 처리
-- **에러 복구**: API 실패 시 자동 폴백 및 재시도
 
 ## 🐛 **문제 해결**
 
@@ -248,9 +236,6 @@ Date,User,Message
 # 패키지 재설치
 pip install -r requirements.txt
 
-# 환경변수 확인
-echo $PYTHONPATH
-```
 
 #### **2. DB 연결 오류**
 ```bash
@@ -268,38 +253,16 @@ echo $UPSTAGE_API_KEY
 echo $UPSTAGE_BASE_URL
 ```
 
-#### **4. 메모리 부족**
-```bash
-# 동시성 제한
-export MAX_CONCURRENCY=4
-
-# 캐시 비활성화
-export CACHE_TTL_SECS=0
-```
 
 ### **로그 확인**
 
 ```bash
 # 상세 로그 확인
-python run_preprocess_pipeline.py --input chatt.csv --user "구남혁" --age 23 --gender M --relation "친구" --budget-min 30000 --budget-max 50000 2>&1 | tee log.txt
+python run_preprocess_pipeline.py --input chatt.csv --user "" --age 23 --gender M --relation "친구" --budget-min 30000 --budget-max 50000 2>&1 | tee log.txt
 ```
 
 ## 🔬 **개발 및 테스트**
 
-### **타입 검증**
-```bash
-cd backend/app
-mypy . --ignore-missing-imports
-```
-
-### **코드 스타일 검증**
-```bash
-# Python 문법 검증
-python -m py_compile $(find . -name "*.py")
-
-# Black 포맷팅
-black .
-```
 
 ### **단위 테스트**
 ```bash
