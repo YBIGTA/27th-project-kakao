@@ -5,7 +5,7 @@
 1. uppercategory_node.py - 상위 카테고리 확률 계산
 2. lowercategory_node.py - 하위 카테고리 확률 계산  
 3. joint_gate_node.py - 로그 가중합 결합 및 Top-K 선택
-4. DB 필터링 - 선택된 카테고리로 상품 필터링
+4. db_filter_node.py - 선택된 카테고리로 상품 필터링
 5. product_node.py - 최종 상품 랭킹/가드레일
 """
 
@@ -14,7 +14,7 @@ from .preprocess.main_processor import main
 from .nodes.uppercategory_node import UpperCategoryNode
 from .nodes.lowercategory_node import LowerCategoryNode
 from .nodes.joint_gate_node import JointGateNode
-from .core.search import search_products_for_leaf
+from .nodes.db_filter_node import DBFilterNode
 from .nodes.product_node import ProductNode
 
 class PipelineEngine:
@@ -25,6 +25,7 @@ class PipelineEngine:
         self.upper_node = UpperCategoryNode()
         self.lower_node = LowerCategoryNode()
         self.joint_gate_node = JointGateNode()
+        self.db_filter_node = DBFilterNode()
         self.product_node = ProductNode()
     
     async def run(
@@ -118,8 +119,8 @@ class PipelineEngine:
                     "selections": []
                 }
             
-            # 5) DB 필터링
-            candidates = await search_products_for_leaf(
+            # 5) DB 필터링 노드
+            candidates = await self.db_filter_node.process(
                 leaf, budget_min, budget_max
             )
             
