@@ -33,7 +33,6 @@ class FinalProductPrompts:
         self, 
         candidates: list, 
         user_profile: dict,
-        rag_context: dict = None,
         sentence_context: list = None
     ) -> str:
         """사용자 프롬프트를 생성합니다."""
@@ -67,9 +66,6 @@ class FinalProductPrompts:
    - 만족도: {product.get('satisfaction_pct', 'N/A')}%
    - URL: {product.get('product_url', 'N/A')}
 """
-        
-        if rag_context:
-            prompt += f"\n추가 컨텍스트: {rag_context}"
         
         if sentence_context:
             prompt += f"\n관련 문장들: {' '.join(sentence_context)}"

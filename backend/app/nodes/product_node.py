@@ -1,11 +1,11 @@
 """
 상품 랭킹/가드레일 노드 (product_node.py)
 
-Input: candidates, profile, 상품 별 RAG 컨텍스트 + 문장 라우팅 연관 문장 모음
+Input: candidates, profile, sentence_context
 Process (택1):
-    - LLM STRICT 선택 (후보 밖 금지 / 5개 / 예산·연령·관계 준수 / JSON only)
+    - LLM STRICT 선택 (후보 밖 금지 / 카테고리별 1개씩 / 예산·연령·관계 준수 / JSON only)
     - 실패 시 룰/임베딩 랭크 폴백 (리뷰수→위시수→평점 + 프로필 보너스)
-Output: final_products (Top-5 + 이유)
+Output: final_products (카테고리별 1개씩 + 이유)
 """
 
 import os
@@ -29,7 +29,6 @@ class ProductNode:
         self,
         candidates: List[Dict[str, Any]],
         profile: Dict[str, Any],
-        rag_context: Dict[str, Any] = None,
         sentence_context: List[str] = None
     ) -> List[Dict[str, Any]]:
         """
@@ -38,7 +37,6 @@ class ProductNode:
         Args:
             candidates: 후보 상품 목록
             profile: 사용자 프로필
-            rag_context: 상품별 RAG 컨텍스트 (선택사항)
             sentence_context: 문장 라우팅 연관 문장 모음 (선택사항)
             
         Returns:
@@ -50,7 +48,7 @@ class ProductNode:
         # 1. LLM STRICT 선택 시도 (카테고리별 1개씩)
         try:
             llm_selections = await self._llm_strict_selection(
-                candidates, profile, rag_context, sentence_context
+                candidates, profile, sentence_context
             )
             if llm_selections:
                 return llm_selections
@@ -64,7 +62,6 @@ class ProductNode:
         self,
         candidates: List[Dict[str, Any]],
         profile: Dict[str, Any],
-        rag_context: Dict[str, Any] = None,
         sentence_context: List[str] = None
     ) -> List[Dict[str, Any]]:
         """
@@ -73,53 +70,22 @@ class ProductNode:
         - 카테고리별 1개씩 선택
         - 예산·연령·관계 준수
         - JSON only 응답
+        - Upstage API 사용
         """
         system_prompt = self.prompts.system_prompt
         user_prompt = self.prompts.create_user_prompt(
-            candidates, profile, rag_context, sentence_context
+            candidates, profile, sentence_context
         )
         
         try:
-            if self.llm_provider == "openai":
-                return await self._call_openai_llm(system_prompt, user_prompt, candidates)
-            elif self.llm_provider == "upstage":
-                return await self._call_upstage_llm(system_prompt, user_prompt, candidates)
-            else:
-                raise RuntimeError(f"지원하지 않는 LLM provider: {self.llm_provider}")
+            return await self._call_upstage_llm(system_prompt, user_prompt, candidates)
         except Exception as e:
             print(f"LLM 호출 실패: {e}")
             return []
     
 
     
-    async def _call_openai_llm(
-        self, 
-        system_prompt: str, 
-        user_prompt: str, 
-        candidates: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """OpenAI LLM을 호출합니다."""
-        try:
-            from openai import OpenAI
-            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            
-            response = client.chat.completions.create(
-                model=self.llm_model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=0.2,
-                response_format={"type": "json_object"},
-                max_tokens=1000
-            )
-            
-            content = response.choices[0].message.content
-            return self.prompts.parse_response(content, candidates)
-            
-        except Exception as e:
-            print(f"OpenAI LLM 호출 실패: {e}")
-            return []
+
     
     async def _call_upstage_llm(
         self, 

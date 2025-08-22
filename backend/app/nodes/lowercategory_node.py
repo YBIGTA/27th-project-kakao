@@ -1,12 +1,12 @@
 """
 하위 카테고리 노드 (lowercategory_node.py)
 
-Input: 전처리, user_profile, probs_upper
+Input: preprocessed_data (CSV 파일 경로 + 사용자 프로필)
 Process:
-    - 모든 상위 p에 대해 자식 logits 산출
+    - LLM을 통한 모든 하위 카테고리 confidence 계산
     - 부모별 안정화 softmax → P(c|p,x)
     - ε-floor & 재정규화 (부모별로 적용)
-Output: probs_lower_by_parent={p:{c:prob}}, reasoning
+Output: probs_lower_by_parent={p:{c:prob}}, reasoning, confidence_data
 """
 
 import os
@@ -42,20 +42,16 @@ class LowerCategoryNode:
     
     def process(
         self, 
-        preprocessed_data: Dict[str, Any], 
-        user_profile: Dict[str, Any],
-        probs_upper: Dict[str, float]
-    ) -> Tuple[Dict[str, Dict[str, float]], str]:
+        preprocessed_data: Dict[str, Any]
+    ) -> Tuple[Dict[str, Dict[str, float]], str, Dict[str, Any]]:
         """
         하위 카테고리 확률을 계산합니다.
         
         Args:
             preprocessed_data: 전처리된 데이터
-            user_profile: 사용자 프로필 정보
-            probs_upper: 상위 카테고리 확률 {parent: prob}
             
         Returns:
-            Tuple[Dict[str, Dict[str, float]], str]: (부모별 하위 카테고리 확률, 추론 과정)
+            Tuple[Dict[str, Dict[str, float]], str, Dict[str, Any]]: (부모별 하위 카테고리 확률, 추론 과정, confidence 데이터)
         """
         try:
             # 1. 대화 텍스트 추출
@@ -72,7 +68,7 @@ class LowerCategoryNode:
             
             # 4. LLM을 통한 하위 카테고리 confidence 계산
             llm_response = self._call_llm_for_lower_categories(
-                conversation_text, user_profile, top_category_list, sub_category_list, probs_upper
+                conversation_text, top_category_list, sub_category_list
             )
             
             # 5. LLM 응답 파싱
@@ -80,23 +76,23 @@ class LowerCategoryNode:
             
             # 6. confidence를 확률로 변환 (부모별 안정화 softmax + ε-floor)
             probs_lower_by_parent = self._convert_confidence_to_probabilities(
-                confidence_data, probs_upper
+                confidence_data
             )
             
             # 7. 추론 과정 생성 (이미 파싱에서 받았으므로 그대로 사용)
-            return probs_lower_by_parent, reasoning
+            return probs_lower_by_parent, reasoning, confidence_data
             
         except Exception as e:
             print(f"하위 카테고리 노드 오류: {e}")
             # 폴백: 균등 분포
             probs_lower_by_parent = {}
             for parent, children in self.sub_categories_by_parent.items():
-                if parent in probs_upper and probs_upper[parent] > 0:
-                    probs_lower_by_parent[parent] = {
-                        child: 1.0/len(children) for child in children
-                    }
+                probs_lower_by_parent[parent] = {
+                    child: 1.0/len(children) for child in children
+                }
             reasoning = f"오류로 인한 균등 분포 적용: {str(e)}"
-            return probs_lower_by_parent, reasoning
+            confidence_data = {}
+            return probs_lower_by_parent, reasoning, confidence_data
     
     def _extract_conversation_text(self, preprocessed_data: Dict[str, Any]) -> str:
         """전처리된 데이터에서 대화 텍스트를 추출합니다."""
@@ -118,49 +114,24 @@ class LowerCategoryNode:
     def _call_llm_for_lower_categories(
         self,
         conversation_text: str,
-        user_profile: Dict[str, Any],
         top_category_list: List[str],
-        sub_category_list: List[str],
-        probs_upper: Dict[str, float]
+        sub_category_list: List[str]
     ) -> str:
         """LLM을 호출하여 하위 카테고리 confidence를 계산합니다."""
         system_prompt = self.prompts.system_prompt
         user_prompt = self.prompts.create_user_prompt(
             conversation_text=conversation_text,
-            user_profile=user_profile,
             top_category_list=top_category_list,
-            sub_category_list=sub_category_list,
-            upper_probabilities=probs_upper
+            sub_category_list=sub_category_list
         )
         
         try:
-            if self.llm_provider == "openai":
-                return self._call_openai_llm(system_prompt, user_prompt)
-            elif self.llm_provider == "upstage":
-                return self._call_upstage_llm(system_prompt, user_prompt)
-            else:
-                raise RuntimeError(f"지원하지 않는 LLM provider: {self.llm_provider}")
+            return self._call_upstage_llm(system_prompt, user_prompt)
         except Exception as e:
             print(f"LLM 호출 실패: {e}")
             raise
     
-    def _call_openai_llm(self, system_prompt: str, user_prompt: str) -> str:
-        """OpenAI LLM을 호출합니다."""
-        import openai
-        
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        
-        response = client.chat.completions.create(
-            model=self.llm_model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.1,
-            max_tokens=2000
-        )
-        
-        return response.choices[0].message.content
+
     
     def _call_upstage_llm(self, system_prompt: str, user_prompt: str) -> str:
         """Upstage LLM을 호출합니다."""
@@ -193,16 +164,12 @@ class LowerCategoryNode:
     
     def _convert_confidence_to_probabilities(
         self, 
-        confidence_data: Dict[str, float], 
-        probs_upper: Dict[str, float]
+        confidence_data: Dict[str, float]
     ) -> Dict[str, Dict[str, float]]:
         """confidence를 확률로 변환합니다 (부모별 안정화 softmax + ε-floor)."""
         probs_lower_by_parent = {}
         
         for parent, children in self.sub_categories_by_parent.items():
-            # 상위 카테고리 확률이 0이면 건너뛰기
-            if parent not in probs_upper or probs_upper[parent] <= 0:
-                continue
             
             # 해당 부모의 하위 카테고리 confidence 추출
             child_confidences = []

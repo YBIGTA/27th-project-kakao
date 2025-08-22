@@ -8,10 +8,12 @@
 __version__ = "1.0.0"
 __author__ = "카카오톡 처리 시스템 개발팀"
 
-from .processor import KakaoProcessor
-from .base_processor import BaseProcessor
+from .main_processor import main
+from .csv_processor import CSVProcessor
+from .text_processor import TextProcessor
 
 __all__ = [
-    'KakaoProcessor', 
-    'BaseProcessor'
+    'main',
+    'CSVProcessor', 
+    'TextProcessor'
 ]
