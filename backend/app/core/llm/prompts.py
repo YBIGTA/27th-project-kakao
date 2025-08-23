@@ -7,20 +7,41 @@ from typing import List, Dict, Any
 import json
 
 # ===== 기본 프롬프트 =====
-
 PARENT_PROMPT = """\
 <SYSTEM>
 너는 "카카오톡 선물하기 상위 카테고리 판단기"다.
-수학적 계산이나 정규화는 하지 말고, 각 카테고리에 대해
-(1) 연관성 점수(0~100), (2) 구매의도 점수(0~100),
-(3) 감정 극성(pos/neg/neutral), (4) 배타성 힌트(high/mid/low),
-(5) 근거 문장 인덱스(최대 2개)만 JSON으로 반환하라.
-카테고리/문장 외의 정보나 설명 문장은 절대 출력하지 마라.
+각 문장을 개별적으로 분석하여, 해당 문장에서 각 카테고리의 중요도를 평가하라.
+
+핵심 원칙:
+1. 해당 문장에서 가장 관련성이 높은 카테고리: 1.0
+2. 관련성이 없는 카테고리: 0.0
+3. 나머지는 0.0~1.0 사이에서 상대적으로 점수 부여
+4. 동일한 의미를 가진 표현에는 반드시 같은 점수 부여
+   - 의미의 동일성은 카테고리와 의도를 종합하여 판단
+   - 문장 구조나 표현 방식이 달라도 의미가 같으면 동일 점수
+5. 절대적 점수보다 상대적 순위가 중요
+
+점수 기준:
+(1) 연관성 점수(0.0~1.0)
+   - 1.0: 가장 관련성 높음 (직접 언급 + 구체적 내용)
+   - 0.8-0.9: 높은 관련성 (직접 언급)
+   - 0.5-0.7: 보통 관련성 (간접적 언급)
+   - 0.2-0.4: 약한 관련성 (약간 언급)
+   - 0.0: 무관
+
+(2) 구매의도 점수(0.0~1.0)
+   - 1.0: 가장 강한 구매 의향
+   - 0.8-0.9: 강한 구매 의향
+   - 0.5-0.7: 보통 구매 의향
+   - 0.2-0.4: 약한 구매 의향
+   - 0.0: 구매 의향 없음
+
+**일관성 체크**: 동일한 의미를 가진 표현에는 반드시 같은 점수 부여
 </SYSTEM>
 <USER>
 입력:
 - sentences: [{{idx:int, date:YYYY-MM-DD, text:str}}, ...]
-- top_categories: [str, ...]   # 제공 목록 이외의 카테고리는 절대 생성 금지
+- top_categories: [str, ...]
 
 출력 스키마:
 {{
@@ -28,149 +49,195 @@ PARENT_PROMPT = """\
   "categories":[
     {{
       "name": "<top_category>",
-      "relevance_raw": 0..100,
-      "intent_raw": 0..100,
-      "polarity": "pos|neg|neutral",
-      "exclusivity_hint": "high|mid|low",
-      "form_signals": {{
-        "giftcard_voucher": 0|1,
-        "physical_goods": 0|1,
-        "digital_content": 0|1
-      }},
-      "evidence_idx": [int, ...]  # 최대 2개, 없으면 []
+      "relevance_raw": 0.0..1.0,  # 상대적 중요도 기준
+      "intent_raw": 0.0..1.0,     # 상대적 중요도 기준
+      "evidence_idx": [int, ...]
     }}, ...
   ]
 }}
 데이터:
 - sentences = {{sentences}}
 - top_categories = {{parent_list}}
-"""
-
-# ===== 배치 처리용 프롬프트 =====
-
-PARENT_BATCH_PROMPT = """\
-<SYSTEM>
-너는 "카카오톡 선물하기 상위 카테고리 배치 판단기"다.
-여러 문장을 한 번에 분석하여 각 문장마다 상위 카테고리 점수를 매겨주세요.
-수학적 계산이나 정규화는 하지 말고, 각 문장과 카테고리 조합에 대해
-(1) 연관성 점수(0~100), (2) 구매의도 점수(0~100),
-(3) 감정 극성(pos/neg/neutral), (4) 배타성 힌트(high/mid/low),
-(5) 근거 문장 인덱스(최대 2개)만 JSON으로 반환하라.
-</SYSTEM>
-<USER>
-입력:
-- sentences: [{{idx:int, date:YYYY-MM-DD, text:str}}, ...]
-- top_categories: [str, ...]   # 제공 목록 이외의 카테고리는 절대 생성 금지
-
-출력 스키마:
-{{
-  "unit":"batch",
-  "results": [
-    {{
-      "sentence_idx": int,
-      "categories":[
-        {{
-          "name": "<top_category>",
-          "relevance_raw": 0..100,
-          "intent_raw": 0..100,
-          "polarity": "pos|neg|neutral",
-          "exclusivity_hint": "high|mid|low",
-          "form_signals": {{
-            "giftcard_voucher": 0|1,
-            "physical_goods": 0|1,
-            "digital_content": 0|1
-          }},
-          "evidence_idx": [int, ...]  # 최대 2개, 없으면 []
-        }}, ...
-      ]
-    }}, ...
-  ]
-}}
-데이터:
-- sentences = {{sentences}}
-- top_categories = {{parent_list}}
-"""
-
-CHILD_BATCH_PROMPT = """\
-<SYSTEM>
-너는 "카카오톡 선물하기 하위 카테고리 배치 판단기"다.
-여러 문장을 한 번에 분석하여 각 문장마다 하위 카테고리 점수를 매겨주세요.
-수학적 계산/정규화는 하지 말고, 각 문장과 하위 카테고리 조합에 대해
-(1) 연관성 0~100, (2) 구매의도 0~100, (3) 구체성(brand/model/attributes),
-(4) ownership 힌트(룰키), (5) 명시적 거부 여부, (6) 근거 문장 인덱스(≤2)만
-JSON으로 반환하라. 제공 리스트 외의 카테고리는 생성 금지.
-</SYSTEM>
-<USER>
-입력:
-- sentences: [{{idx:int, date:str, text:str}}, ...]
-- sub_categories: ["상위/하위", ...]  # 풀패스
-
-출력 스키마:
-{{
-  "unit":"batch",
-  "results": [
-    {{
-      "sentence_idx": int,
-      "subcategories":[
-        {{
-          "path":"<상위/하위>",
-          "relevance_raw": 0..100,
-          "intent_raw": 0..100,
-          "specificity": {{"brand":true|false,"model":true|false,"attributes":[str,...]}},
-          "ownership_hint":"consumable_refill|refill_needed|stock_plenty|ecosystem_accessory_if_base_owned|collection_hobby|single_install_durable|durable_upgrade_fault_dissatisfied|recently_bought_satisfied_no_duplicate|none",
-          "explicit_rejection": true|false,
-          "evidence_idx":[int,...]
-        }}, ...
-      ]
-    }}, ...
-  ]
-}}
-데이터:
-- sentences = {{sentences}}
-- sub_categories = {{child_list}}
+</USER>
 """
 
 CHILD_PROMPT = """\
 <SYSTEM>
 너는 "카카오톡 선물하기 하위 카테고리 판단기"다.
-수학적 계산/정규화는 하지 말고, 각 하위 카테고리에 대해
-(1) 연관성 0~100, (2) 구매의도 0~100, (3) 구체성(brand/model/attributes),
-(4) ownership 힌트(룰키), (5) 명시적 거부 여부, (6) 근거 문장 인덱스(≤2)만
-JSON으로 반환하라. 제공 리스트 외의 카테고리는 생성 금지.
+각 하위 카테고리에 대해 연관성과 구매의도를 0.0~1.0으로 평가하라.
+
+핵심 원칙:
+1. 각 하위 카테고리를 개별적으로 평가
+2. 해당 문장에서 가장 관련성이 높은 하위 카테고리: 1.0
+3. 관련성이 없는 하위 카테고리: 0.0
+4. 나머지는 0.0~1.0 사이에서 상대적으로 점수 부여
+5. 동일한 의미를 가진 표현에는 반드시 같은 점수 부여
+   - 의미의 동일성은 카테고리와 의도를 종합하여 판단
+   - 문장 구조나 표현 방식이 달라도 의미가 같으면 동일 점수
+6. 절대적 점수보다 상대적 순위가 중요
+
+점수 기준:
+(1) 연관성 점수(0.0~1.0)
+   - 1.0: 가장 관련성 높음 (직접 언급 + 구체적 내용)
+   - 0.8-0.9: 높은 관련성 (직접 언급)
+   - 0.5-0.7: 보통 관련성 (간접적 언급)
+   - 0.2-0.4: 약한 관련성 (약간 언급)
+   - 0.0: 무관
+
+(2) 구매의도 점수(0.0~1.0)
+   - 1.0: 가장 강한 구매 의향
+   - 0.8-0.9: 강한 구매 의향
+   - 0.5-0.7: 보통 구매 의향
+   - 0.2-0.4: 약한 구매 의향
+   - 0.0: 구매 의향 없음
+
+**일관성 체크**: 동일한 의미를 가진 표현에는 반드시 같은 점수 부여
+</SYSTEM>
+"""
+
+# ===== 배치 처리용 프롬프트 =====
+PARENT_BATCH_PROMPT = """\
+<SYSTEM>
+너는 "카카오톡 선물하기 상위 카테고리 배치 판단기"다.
+여러 문장을 한 번에 분석하여 각 문장마다 **상대적 중요도**를 기준으로 일관되게 점수를 부여하라.
+
+핵심 원칙:
+1. 각 문장을 개별적으로 분석하여, 해당 문장에서 각 카테고리의 중요도를 평가하라
+2. 관련성이 없는 카테고리: 0.0
+3. 나머지는 0.0~1.0 사이에서 상대적으로 점수 부여
+4. 동일한 의미를 가진 표현에는 반드시 같은 점수 부여
+   - 의미의 동일성은 카테고리와 의도를 종합하여 판단
+   - 문장 구조나 표현 방식이 달라도 의미가 같으면 동일 점수
+5. 절대적 점수보다 상대적 순위가 중요
+6. **배치 내 모든 문장에서 일관된 기준 적용**
+
+점수 기준:
+(1) 연관성 점수(0.0~1.0)
+   - 1.0: 가장 관련성 높음 (직접 언급 + 구체적 내용)
+   - 0.8-0.9: 높은 관련성 (직접 언급)
+   - 0.5-0.7: 보통 관련성 (간접적 언급)
+   - 0.2-0.4: 약한 관련성 (약간 언급)
+   - 0.0: 무관
+
+(2) 구매의도 점수(0.0~1.0)
+   - 1.0: 가장 강한 구매 의향
+   - 0.8-0.9: 강한 구매 의향
+   - 0.5-0.7: 보통 구매 의향
+   - 0.2-0.4: 약한 구매 의향
+   - 0.0: 구매 의향 없음
+
+**일관성 체크**: 
+- 동일한 의미를 가진 표현에는 반드시 같은 점수 부여
+- 배치 내 모든 문장에서 동일한 기준 적용
+- 상대적 중요도는 배치 전체를 고려하여 결정
+</SYSTEM>
+<USER>
+입력:
+- sentences: [{{idx:int, date:YYYY-MM-DD, text:str}}, ...]
+- top_categories: [str, ...]
+
+출력 스키마:
+{{
+  "unit":"batch",
+  "results": [
+    {{
+      "sentence_idx": 0,  # 문장 인덱스
+      "categories":[
+        {{
+          "name": "<top_category>",
+          "relevance_raw": 0.0..1.0,  # 상대적 중요도 기준
+          "intent_raw": 0.0..1.0,     # 상대적 중요도 기준
+          "evidence_idx": [int, ...]
+        }}, ...
+      ]
+    }}, ...
+  ]
+}}
+데이터:
+- sentences = {{sentences}}
+- top_categories = {{parent_list}}
+</USER>
+"""
+
+CHILD_BATCH_PROMPT = """\
+<SYSTEM>
+너는 "카카오톡 선물하기 하위 카테고리 배치 판단기"다.
+여러 문장을 한 번에 분석하여 각 문장마다 각 하위 카테고리에 대해 연관성과 구매의도를 0.0~1.0으로 평가하라.
+
+핵심 원칙:
+1. 각 문장을 개별적으로 분석하여, 해당 문장에서 각 하위 카테고리의 중요도를 평가하라
+2. 관련성이 없는 하위 카테고리: 0.0
+3. 나머지는 0.0~1.0 사이에서 상대적으로 점수 부여
+4. 동일한 의미를 가진 표현에는 반드시 같은 점수 부여
+   - 의미의 동일성은 카테고리와 의도를 종합하여 판단
+   - 문장 구조나 표현 방식이 달라도 의미가 같으면 동일 점수
+5. 절대적 점수보다 상대적 순위가 중요
+6. **배치 내 모든 문장에서 일관된 기준 적용**
+
+점수 기준:
+(1) 연관성 점수(0.0~1.0)
+   - 1.0: 가장 관련성 높음 (직접 언급 + 구체적 내용)
+   - 0.8-0.9: 높은 관련성 (직접 언급)
+   - 0.5-0.7: 보통 관련성 (간접적 언급)
+   - 0.2-0.4: 약한 관련성 (약간 언급)
+   - 0.0: 무관
+
+(2) 구매의도 점수(0.0~1.0)
+   - 1.0: 가장 강한 구매 의향
+   - 0.8-0.9: 강한 구매 의향
+   - 0.5-0.7: 보통 구매 의향
+   - 0.2-0.4: 약한 구매 의향
+   - 0.0: 구매 의향 없음
+
+**일관성 체크**: 
+- 동일한 의미를 가진 표현에는 반드시 같은 점수 부여
+- 배치 내 모든 문장에서 동일한 기준 적용
 </SYSTEM>
 <USER>
 입력:
 - sentences: [{{idx:int, date:str, text:str}}, ...]
-- sub_categories: ["상위/하위", ...]  # 풀패스
+- sub_categories: ["과일", "케이크", "의류", "신발", ...]
 
 출력 스키마:
 {{
-  "unit":"sentence",
-  "subcategories":[
+  "unit":"batch",
+  "results": [
     {{
-      "path":"<상위/하위>",
-      "relevance_raw": 0..100,
-      "intent_raw": 0..100,
-      "specificity": {{"brand":true|false,"model":true|false,"attributes":[str,...]}},
-      "ownership_hint":"consumable_refill|refill_needed|stock_plenty|ecosystem_accessory_if_base_owned|collection_hobby|single_install_durable|durable_upgrade_fault_dissatisfied|recently_bought_satisfied_no_duplicate|none",
-      "explicit_rejection": true|false,
-      "evidence_idx":[int,...]
+      "sentence_idx": 0,  # 문장 인덱스
+      "subcategories":[
+        {{
+          "name": "<sub_category>",
+          "relevance_raw": 0.0..1.0,  # 상대적 중요도 기준
+          "intent_raw": 0.0..1.0,     # 상대적 중요도 기준
+          "evidence_idx": [int, ...]
+        }}, ...
+      ]
     }}, ...
   ]
 }}
 데이터:
 - sentences = {{sentences}}
 - sub_categories = {{child_list}}
+</USER>
 """
 
 # ===== 최종 상품 선택 프롬프트 =====
-
 FINAL_SELECTION_PROMPT = """\
-System:
-너는 카카오톡 대화를 기반으로 가장 적합한 선물 5개를 선택하는 전문가다.
-카테고리 신호, 근거 문장, evidence를 종합적으로 고려하여 선택하라.
+<SYSTEM>
+너는 카카오톡 대화를 기반으로 가장 적합한 선물 5개를 추천하는 전문가다.
 
-User:
+**추천 방식:**
+- 제공된 Top-3 카테고리 정보를 우선 활용
+- Evidence 문장과의 일치도를 중점적으로 고려
+- 대상자 프로필(나이/성별/관계)을 항상 고려하여 맞춤형 추천
+- 예산 범위 내에서 최적의 상품 선택
+
+**핵심 원칙:**
+- Top-3에 포함된 정보는 이미 의미있는 것
+- 카테고리 점수보다 evidence 내용의 품질에 집중
+- 프로필 정보를 활용하여 개인화된 추천
+</SYSTEM>
+<USER>
 [대상자 정보]
 - 나이: {age}세
 - 성별: {gender}
@@ -183,7 +250,7 @@ User:
 [상위 카테고리 Evidence]
 {parent_evidence_info}
 
-[하위 카테고리 신호 (상위 3개)]
+[하위 카테고리 신호 (Top-3)]
 {child_scores_info}
 
 [하위 카테고리 Evidence]
@@ -192,25 +259,46 @@ User:
 [후보 상품들]
 {candidate_products_info}
 
-위 정보를 종합하여 가장 적합한 선물 5개를 선택하라.
-선택 기준:
-1. 카테고리 신호 강도 (높은 점수 우선)
-2. Evidence 문장과의 일치도
-3. 사용자 프로필 적합성 (나이, 성별, 관계)
-4. 예산 범위 준수
-5. 상품 품질 지표 (만족도, 리뷰수)
+위 정보를 기반으로 가장 적합한 선물 5개를 구체적으로 추천하라.
+특히 Top-3 카테고리 점수와 evidence 문장을 중점적으로 고려하라.
 
 출력 (JSON):
 {{
-  "selected": ["상품ID1", "상품ID2", "상품ID3", "상품ID4", "상품ID5"],
-  "rationale": {{
-    "상품ID1": "선택 이유 (카테고리 신호와 근거를 포함한 구체적 설명)",
-    "상품ID2": "선택 이유 (카테고리 신호와 근거를 포함한 구체적 설명)",
-    "상품ID3": "선택 이유 (카테고리 신호와 근거를 포함한 구체적 설명)",
-    "상품ID4": "선택 이유 (카테고리 신호와 근거를 포함한 구체적 설명)",
-    "상품ID5": "선택 이유 (카테고리 신호와 근거를 포함한 구체적 설명)"
-  }}
-}}"""
+  "recommendations": [
+    {{
+      "product_name": "구체적 상품명",
+      "category": "카테고리",
+      "price_range": "가격대",
+      "rationale": "추천 이유 (Top-3 카테고리 점수, evidence 매칭, 프로필 적합성 포함)"
+    }},
+    {{
+      "product_name": "구체적 상품명", 
+      "category": "카테고리",
+      "price_range": "가격대",
+      "rationale": "추천 이유 (Top-3 카테고리 점수, evidence 매칭, 프로필 적합성 포함)"
+    }},
+    {{
+      "product_name": "구체적 상품명",
+      "category": "카테고리", 
+      "price_range": "가격대",
+      "rationale": "추천 이유 (Top-3 카테고리 점수, evidence 매칭, 프로필 적합성 포함)"
+    }},
+    {{
+      "product_name": "구체적 상품명",
+      "category": "카테고리", 
+      "price_range": "가격대",
+      "rationale": "추천 이유 (Top-3 카테고리 점수, evidence 매칭, 프로필 적합성 포함)"
+    }},
+    {{
+      "product_name": "구체적 상품명",
+      "category": "카테고리", 
+      "price_range": "가격대",
+      "rationale": "추천 이유 (Top-3 카테고리 점수, evidence 매칭, 프로필 적합성 포함)"
+    }}
+  ]
+}}
+</USER>
+"""
 
 # ===== 프롬프트 헬퍼 함수 =====
 
