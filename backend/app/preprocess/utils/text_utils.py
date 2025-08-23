@@ -14,73 +14,180 @@ from .filter_non_korean import (
 )
 from .korean_eomi_dict import END_EOMI_SPLIT_RE, get_eomi_context_score
 
-# 의미 없는 메시지 패턴 리스트
-REMOVE_LIST = [
-    # ── 인사 / 작별 ──
-    r"안녕", r"하이", r"헬로", r"하위", r"하이루", r"ㅎㅇ", r"방가", r"안뇽", r"안농",
-    r"안녕하세요", r"안녕하세염", r"안녕하세욤", r"안녕하세용",
-    r"ㅎㅇㄹ", r"반갑", r"반갑습니다", r"반갑다",r"반갑고" r"어서오고", r"어서오세요",
-    r"잘자", r"굿밤", r"잘자용", r"굿나잇", r"잘가", r"수고", r"수고링", r"수고용",
-    r"내일\s?봐", r"낼봐", r"담에봐", r"또봐", r"이따봐", r"나중에\s?봐",
-    r"빠이", r"ㅂㅂ", r"ㅃㅃ", r"바이", r"ㅂㅇ", r"ㅂ2", r"bye", r"즐",
-    r"먼저\s?갈게", r"먼저\s?간다", r"들어가세요", r"들갑니다", r"수고하세요",
+# 감정표현과 감정표현 강도만으로 이루어진 행을 찾기 위한 패턴들
+EMOTION_ONLY_PATTERNS = [
+    # 감정표현 단어들
+    r"\b좋아\b", r"\b좋아요\b", r"\b좋다\b", r"\b좋지\b", r"\b나이스\b", r"\b굿\b", r"\b굳\b", r"\b조아\b",
+    r"\b대박\b", r"\b쩐다\b", r"\b오졌다\b", r"\b지렸다\b", r"\b미쳤다\b", r"\b미쳤네\b",
+    r"\b레전드\b", r"\b레게노\b", r"\b존맛\b", r"\b존잼\b", r"JMT",
+    r"\b헐\b", r"\b헉\b", r"\b허걱\b", r"\b헐랭\b", r"\b헐퀴\b", r"\b띠용\b",
+    r"\b와우\b", r"\b오우\b", r"\b오예\b", r"\b아싸\b", r"\b오예스\b", r"\b유레카\b",
+    r"\b아이구\b", r"\b아이고\b", r"\b어머\b", r"\b어머나\b", r"\b세상에\b",
+    r"\b아놔\b", r"\b아오\b", r"\b킹받네\b", r"\b딥빡\b", r"\b빡침\b", r"\b황당\b", r"\b어이없네\b",
+    
+    # 감정표현 강도 (웃음소리, 감탄사 등)
+    r"ㅋㅋ+", r"ㅎㅎ+", r"ㅠㅠ+", r"ㅜㅜ+", r"ㅡㅡ", r"ㅂㄷㅂㄷ",
+    r"\b풉\b", r"\b푸핫\b", r"\b푸흡\b", r"\b피식\b", r"\b빵터짐\b", r"\b현웃\b",
+    r"\b흑\b", r"\b흐규+\b", r"\b엉엉\b", r"\b맴찢\b", r"\b눈물\b",
+    
+    # 맞장구/동의 표현들
+    r"\b엉\b", r"\b어\b", r"\b아\b", r"\b응\b", r"\b잉\b", r"\b오\b", r"\b엥\b"
+    r"\b콜\b", r"\b고고\b", r"\b마자\b", r"\b맞아\b", r"\b맞음\b", r"\b인정\b",
+    r"\b오키\b", r"\b오케이\b", r"\b그래\b", r"\b그래서\b", r"\b그럼\b", r"\b그치\b",
+    r"\b당근\b", r"\b당근이지\b", r"\b당연하지\b", r"\b아하\b", r"\b오호\b",
+    r"\b진짜\b", r"\b정말\b", r"\b리얼\b", r"\b레알\b", r"\b진심\b", r"\b너무\b",
+    
+    # 기타 감정표현
+    r"\bㅇㅈ\b", r"\bㄹㅇ\b", r"\bㅆㅇㅈ\b", r"\b쌉인정\b", r"\b쌉가능\b", r"\b쌉파서블\b",
+    r"\b팩트\b", r"\b가능\b", r"\b이해했음\b", r"\b알겠음\b", r"\b알았다\b", r"\b접수\b",
+    r"\bㅇㅋ\b", r"\bㅇㅋㅇㅋ\b", r"\bㅇㅋㄷㅋ\b", r"\bok\b", r"\bOK\b",
+    
+    # 감탄사/의문사
+    r"\b뭐\b", r"\b어디\b", r"\b누구\b", r"\b언제\b", r"\b어케\b", r"\b어쩐지\b", r"\b어쩔\b",
+    r"\b음\b", r"\b흠\b", r"\b뭔가\b", r"\b딱히\b", r"\b혹시\b", r"\b근데\b", r"\b저기\b",
+    r"\b있잖아\b", r"\b뭐랄까\b", r"\b약간\b", r"\b걍\b", r"\b그냥\b", r"\b왤케\b", r"\b솔까말\b",
+    
+    # 부정/거부 표현
+    r"\b노노\b", r"\b아냐\b", r"\b아님\b", r"\b아니\b", r"\b아니거든\b", r"\b놉\b", r"\b절대\b", r"\b전혀\b",
+    r"\b몰라\b", r"\b모름\b", r"\b글쎄\b", r"\b암튼\b", r"\b아무튼\b", r"\b일단\b",
+    
+    # 인사/작별 표현
+    r"\b안녕\b", r"\b하이\b", r"\b헬로\b", r"\b하위\b", r"\b하이루\b", r"\b방가\b", r"\b안뇽\b", r"\b안농\b",
+    r"\b안녕하세요\b", r"\b안녕하세염\b", r"\b안녕하세욤\b", r"\b안녕하세용\b",
+    r"\b반갑\b", r"\b반갑습니다\b", r"\b반갑다\b", r"\b반갑고\b", r"\b어서오고\b", r"\b어서오세요\b",
+    r"\b잘자\b", r"\b굿밤\b", r"\b잘자용\b", r"\b굿나잇\b", r"\b잘가\b", r"\b수고\b", r"\b수고링\b", r"\b수고용\b",
+    r"\b빠이\b", r"\b바이\b", r"\bbye\b", r"\b즐\b",
+    
+    # 감사/사과 표현
+    r"\b감사\b", r"\b땡큐\b", r"\b감사링\b", r"\b고맙다\b", r"\b고마워\b", r"\b고마워요\b",
+    r"\b죄송\b", r"\b미안\b", r"\b쏘리\b", r"\b축하\b",
+    
+    # 기타
+    r"\b잠만\b", r"\b잠시만\b", r"\b잠깐만\b", r"\b기다려봐\b", r"\b잠시\b",
+    r"\bTMI\b", r"\b갑분싸\b", r"\b알빠노\b", r"\b누물보\b", r"\b어쩔티비\b", r"\b저쩔티비\b", r"\b뇌절\b",
+    r"\bGG\b", r"\bgg\b", r"\bGGWP\b", r"\b서렌\b", r"\b트롤\b", r"\b즐겜\b",
+    
+    # 지시대명사들 (의미없는 조합일 때만 전체 삭제)
+    r"\b이거\b", r"\b저거\b", r"\b그거\b", r"\b요거\b", r"\b조거\b", r"\b고거\b",
+    r"\b이게\b", r"\b저게\b", r"\b그게\b", r"\b요게\b", r"\b조게\b", r"\b고게\b",
+    r"\b이런\b", r"\b저런\b", r"\b그런\b", r"\b요런\b", r"\b조런\b", r"\b고런\b",
+    r"\b이런거\b", r"\b저런거\b", r"\b그런거\b", r"\b요런거\b", r"\b조런거\b", r"\b고런거\b",
+    r"\b여기\b", r"\b거기\b", r"\b저기\b", r"\b요기\b", r"\b조기\b", r"\b고기\b",
+    r"\b이쪽\b", r"\b저쪽\b", r"\b그쪽\b", r"\b요쪽\b", r"\b조쪽\b", r"\b고쪽\b",
+    r"\b이때\b", r"\b저때\b", r"\b그때\b", r"\b요때\b", r"\b조때\b", r"\b고때\b",
+    r"\b이제\b", r"\b저제\b", r"\b그제\b", r"\b요제\b", r"\b조제\b", r"\b고제\b"
+]
 
-    # ── 맞장구 / 동의 / 되묻기 ──
+# 순수 맞장구/감탄사 패턴 리스트 (의미 있는 감정표현은 제외)
+REMOVE_LIST = [
+    # ── 맞장구 / 동의 / 되묻기 (순수 맞장구만) ──
     r"^[ㅇ응웅엉넵네넹]+$",
-    r"엉", r"어", r"아", r"응", r"어\?", r"아\?", r"응\?",r"잉",
-    r"콜", r"ㄱㄱ+", r"고고", r"gogo", r"go", r"ㄱㄱㅅ",
-    r"굿", r"굳", r"조아", r"좋아", r"좋아요", r"좋다", r"좋지", r"나이스",
-    r"마자", r"맞아", r"맞음", r"ㅇㅈ", r"인정", r"ㅆㅇㅈ", r"쌉인정",
-    r"ㄹㅇ", r"레알", r"진심", r"ㅇㅈㄸㅇㅈ",
-    r"ㅇㄱㄹㅇ", r"ㅂㅂㅂㄱ",
-    r"내말이", r"내말이\s?그말", r"그니까", r"그러니까",
-    r"오키", r"오케이", r"ㅇㅋ", r"ok", r"OK", r"ㅇㅋㅇㅋ", r"ㅇㅋㄷㅋ",
-    r"당근", r"당근이지", r"그래", r"그래서", r"그럼", r"그럼그럼", r"글치", r"그치", r"당연하지",
-    r"쌉가능", r"쌉파서블", r"가능",
-    r"아하", r"오호", r"이해했음", r"알겠음", r"알았다", r"접수",
-    r"그건맞지", r"그건\s?인정", r"팩트", r"ㄹㅇㅋㅋ",
-    r"진짜", r"정말", r"리얼", r"뭐", r"어디", r"누구", r"언제", r"어케", r"어쩐지", r"어쩔",
+    r"\b엉\b", r"\b어\b", r"\b아\b", r"\b응\b", r"\b어\?\b", r"\b아\?\b", r"\b응\?\b", r"\b잉\b", r"\b오\b", r"\b엥\b", r"\b웅\b", r"\b우웅\b", 
+    r"\b콜\b", r"ㄱㄱ+", r"\b고고\b", r"\bgogo\b", r"\bgo\b", r"ㄱㄱㅅ",
+    r"\b마자\b", r"\b맞아\b", r"\b맞음\b", r"ㅇㅈ", r"\b인정\b", r"ㅆㅇㅈ", r"\b쌉인정\b",
+    r"ㄹㅇ", r"\b레알\b", r"ㅇㅈㄸㅇㅈ", r"ㅇㄱㄹㅇ", r"ㅂㅂㅂㄱ",
+    r"\b내말이\b", r"내말이\s?그말", r"\b그니까\b", r"\b그러니까\b",
+    r"오키", r"오케이", r"옹키", r"오키도키", r"ㅇㅋ", r"\bok\b", r"\bOK\b", r"ㅇㅋㅇㅋ", r"ㅇㅋㄷㅋ",
+    r"\b당근\b", r"\b당근이지\b", r"\b그래\b", r"\b그럼그럼\b", r"\b글치\b", r"\b그치\b", r"\b당연하지\b",
+    r"\b아하\b", r"앗하", r"\b오호\b", r"\b이해했음\b", r"\b알겠음\b", r"\b알았다\b", r"\b접수\b",
+    r"\b그건맞지\b", r"그건\s?인정", r"\b팩트\b", r"ㄹㅇㅋㅋ",
 
     # ── 웃음소리 ──
     r"^[ㅋㅎㅠㅜ풉키]+$", r"ㅋㅋ+", r"ㅎㅎ+", r"ㅋㄷㅋㄷ", r"킥킥", r"크크",
     r"풉", r"푸핫", r"푸흡", r"피식", r"빵터짐", r"현웃",
     r"육성으로\s?터짐", r"육성\s?터짐", r"ㅋㄹㅃㅃ",
 
-    # ── 감탄사 / 감정표현 ──
-    r"ㅠㅠ+", r"ㅜㅜ+", r"흑", r"흐규+", r"엉엉", r"맴찢", r"눈물",
+    # ── 순수 감탄사 (의미가 없는 것들만) ──
+    r"ㅠㅠ+", r"ㅜㅜ+", r"흑", r"흐규+", r"엉엉", r"ㅡㅡ", r"ㅂㄷㅂㄷ",
     r"헐", r"헉", r"허걱", r"헐랭", r"헐퀴", r"띠용", r"어머나", r"세상에",
-    r"와우", r"오우", r"오예", r"아싸", r"오예스", r"유레카",
-    r"쩐다", r"대박", r"오졌다", r"지렸다", r"미쳤다", r"미쳤네",
-    r"레전드", r"레게노", r"폼\s?미쳤다", r"그저\s?빛",
-    r"가슴이\s?웅장해진다", r"이왜진",
     r"아이구", r"아이고", r"어머", r"오마이갓", r"맙소사",
-    r"머선129", r"오히려\s?좋아", r"가보자고",
-    r"아놔", r"아오", r"ㅡㅡ", r"ㅂㄷㅂㄷ", r"킹받네", r"딥빡", r"빡침", r"황당", r"어이없네",
-    r"존맛", r"존잼", r"JMT",
+    r"머선129", r"가보자고", r"아놔", r"아오", r"이왜진",
 
-    # ── 기타 불필요 토막 ──
-    r"ㄴㄴ", r"노노", r"아냐", r"아님", r"아니", r"아니거든", r"놉", r"절대", r"전혀", r"응\s?아니야",
-    r"걍", r"그냥", r"왤케", r"어케", r"솔까말",
-    r"ㅈㄱㄴ", r"TMI", r"갑분싸", r"알빠노", r"누물보",
-    r"어쩔티비", r"저쩔티비", r"뇌절",
-    r"ㄱㅅ", r"감사", r"ㄳ", r"땡큐", r"감사링", r"고맙다", r"고마워",
-    r"ㅈㅅ", r"죄송", r"미안", r"쏘리",
-    r"ㅊㅋ", r"축하",
-    r"잠만", r"잠시만", r"잠깐만", r"ㄱㄷ", r"기다려봐", r"잠시",
-    r"몰라", r"모름", r"글쎄", r"암튼", r"아무튼", r"일단",
-    r"음", r"흠", r"뭔가", r"딱히", r"혹시", r"근데", r"저기", r"있잖아", r"뭐랄까", r"약간",
-    r"GG", r"gg", r"GGWP", r"ㅈㅈ", r"서렌", r"트롤", r"즐겜"
+    # ── 기타 불필요 토막 (의미없는 것들만) ──
+    r"ㄴㄴ", r"\b노노\b", r"\b아냐\b", r"\b아님\b", r"\b아니\b", r"\b아니거든\b", r"\b놉\b", r"응\s?아니야",
+    r"\b걍\b", r"\b그냥\b", r"\b왤케\b", r"\b어케\b", r"\b솔까말\b",
+    r"ㅈㄱㄴ", r"TMI", r"\b갑분싸\b", r"\b알빠노\b", r"\b누물보\b",
+    r"\b어쩔티비\b", r"\b저쩔티비\b", r"\b뇌절\b",
+    r"ㄱㅅ", r"ㄳ", r"ㅈㅅ", r"ㅊㅋ", r"ㄱㄷ",
+    r"\b잠만\b", r"\b잠시만\b", r"\b잠깐만\b", r"\b기다려봐\b", r"\b잠시\b",
+    r"\b몰라\b", r"\b모름\b", r"\b글쎄\b", r"\b암튼\b", r"\b아무튼\b", r"\b일단\b",
+    r"\b음\b", r"\b흠\b", r"\b딱히\b", r"\b혹시\b", r"\b저기\b", r"\b있잖아\b", r"\b뭐랄까\b",
+    r"\bGG\b", r"\bgg\b", r"\bGGWP\b", r"ㅈㅈ", r"서렌", r"트롤", r"즐겜"
 ]
+
+# 연결어류는 문두/문말에서만 정리(중간 등장 시 의미 보존)
+EDGE_FILLERS = [r"그래서", r"근데", r"그러니까", r"그니까", r"그리고", r"그럼"]
+
+def strip_edge_fillers(s: str) -> str:
+    # 문두
+    s = re.sub(rf"^\s*(?:{'|'.join(EDGE_FILLERS)})\s*[,\.…]*\s*", "", s)
+    # 문말
+    s = re.sub(rf"\s*[,\.…]*\s*(?:{'|'.join(EDGE_FILLERS)})\s*$", "", s)
+    return s.strip()
+
+def is_emotion_only_message(text: str) -> bool:
+    """
+    텍스트가 EMOTION_ONLY_PATTERNS와 REMOVE_LIST에 있는 단어들로만 이루어져 있는지 확인합니다.
+    
+    Args:
+        text (str): 확인할 텍스트
+        
+    Returns:
+        bool: 감정표현/불필요한 단어들로만 이루어져 있으면 True, 의미 있는 내용이 포함되어 있으면 False
+    """
+    if not text or not text.strip():
+        return True
+    
+    # 모든 패턴을 하나로 합치기
+    all_patterns = EMOTION_ONLY_PATTERNS + REMOVE_LIST
+    
+    # 텍스트를 단어로 분리 (한글, 영문, 숫자, 이모티콘 등 포함)
+    words = re.findall(r'[가-힣a-zA-Z0-9ㅋㅎㅠㅜㅏㅓㅗㅡㅣ]+|[^\w\s]+', text.strip())
+    
+    if not words:
+        return True
+    
+    # 모든 단어가 패턴에 매칭되는지 확인
+    for word in words:
+        # 문장부호만으로 된 토큰은 의미 없음 → 스킵
+        if re.fullmatch(r'[^\w\s]+', word):
+            continue
+        
+        is_matched = False
+        
+        # 각 패턴과 매칭 확인
+        for pattern in all_patterns:
+            if re.search(pattern, word):
+                is_matched = True
+                break
+        
+        # 순수 한글 감정 문자들 (ㅋㅋㅋ, ㅎㅎㅎ 등)
+        if not is_matched and re.match(r'^[ㅋㅎㅠㅜㅏㅓㅗㅡㅣ]+$', word):
+            is_matched = True
+        
+        # 하나라도 매칭되지 않으면 의미 있는 내용 포함
+        if not is_matched:
+            return False
+    
+    # 모든 단어가 매칭되면 감정표현/불필요한 단어로만 구성
+    return True
+
 
 def clean_message(text: str, min_tail: int = 7) -> str | None:
     """
     규칙:
-    1) REMOVE_LIST 패턴이 있으면 패턴만 제거
-    2) 단, 패턴 제거 후 남은 문자열이 min_tail 이하라면 전체 문장 삭제
-    3) 매칭이 없으면 원문 반환
-    4) 모든 패턴을 반복적으로 제거 (한 번에 하나씩)
+    1) 감정표현만으로 이루어진 메시지는 전체 삭제
+    2) REMOVE_LIST 패턴이 있으면 패턴만 제거
+    3) 단, 패턴 제거 후 남은 문자열이 min_tail 이하라면 전체 문장 삭제
+    4) 매칭이 없으면 원문 반환
+    5) 모든 패턴을 반복적으로 제거 (한 번에 하나씩)
     """
-    new_text = text
+        # 감정표현만으로 이루어진 메시지인지 먼저 확인
+    if is_emotion_only_message(text):
+        return None
+
+    # 문두/문말 연결어만 정리(중간 정보는 보존)
+    new_text = strip_edge_fillers(text)
     changed = True
     
     # 패턴이 더 이상 제거되지 않을 때까지 반복
@@ -97,7 +204,10 @@ def clean_message(text: str, min_tail: int = 7) -> str | None:
                 new_text = candidate
                 changed = True
                 break  # 패턴을 찾았으면 다시 처음부터 검사
-    
+
+    # 최종적으로 한 번 더 엣지 트리밍
+    new_text = strip_edge_fillers(new_text)
+
     return new_text if new_text.strip() else None
 
 
@@ -345,8 +455,8 @@ def drop_long_text_with_few_eomi(data: List[Dict[str, Any]],
 
 
 def preprocess_messages(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """메시지들을 전처리합니다."""
-    print("🧹 전처리 시작...")
+    """메시지들을 전처리합니다. (clean_message 제외)"""
+    print("🧹 기본 전처리 시작...")
     original_count = len(data)
     
     # 1. 시스템/노이즈 행 삭제
@@ -376,28 +486,14 @@ def preprocess_messages(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     print("  • 삭제된 메시지 필터링 중...")
     data = drop_deleted_messages(data)
     
-    # 6. 의미 없는 메시지 필터링 (새로운 로직)
-    print("  • 의미 없는 메시지 필터링 중...")
-    filtered_data = []
-    for item in data:
-        message = item.get('message', '')
-        cleaned_message = clean_message(message, min_tail=7)
-        if cleaned_message is not None:
-            # 메시지가 정리된 경우 업데이트
-            item['message'] = cleaned_message
-            filtered_data.append(item)
-        # None인 경우 (삭제 대상)는 제외
-    
-    data = filtered_data
-    
-    # 7. 비한국어 내용 필터링 (프로그래밍 코드, 터미널 로그 등)
+    # 6. 비한국어 내용 필터링 (프로그래밍 코드, 터미널 로그 등)
     print("  • 비한국어 내용 필터링 중...")
     filtered_data = []
     dropped_count = 0
     
     for item in data:
         message = item.get('message', '')
-        if should_drop_row(message, min_chars=40, nonko_threshold=0.60, 
+        if should_drop_row(message, min_chars=200, nonko_threshold=0.60, 
                           special_threshold=0.12, keep_plain_english=True):
             dropped_count += 1
             print(f"🗑️ 비한국어 삭제: '{message[:50]}...'")
@@ -409,14 +505,76 @@ def preprocess_messages(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if dropped_count > 0:
         print(f"  • 비한국어 내용 {dropped_count}개 삭제됨")
     
-    # 8. 종결어미 적은 긴 텍스트 필터링
+    # 7. 종결어미 적은 긴 텍스트 필터링
     print("  • 종결어미 적은 긴 텍스트 필터링 중...")
-    data = drop_long_text_with_few_eomi(data, min_length=50, min_eomi_count=5)
+    data = drop_long_text_with_few_eomi(data, min_length=200, min_eomi_count=5)
     
     final_count = len(data)
-    print(f"✅ 전처리 완료: {original_count}개 → {final_count}개 메시지")
+    print(f"✅ 기본 전처리 완료: {original_count}개 → {final_count}개 메시지")
     
     return data
+
+
+def clean_emotion_messages(data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """감정표현/의미 없는 메시지 필터링 (SBD 이후 실행)"""
+    print("🧹 감정표현 메시지 필터링 중...")
+    original_count = len(data)
+    
+    filtered_data = []
+    dropped_count = 0
+    
+    for item in data:
+        message = item.get('message', '')
+        cleaned_message = clean_message(message, min_tail=7)
+        
+        if cleaned_message is not None:
+            # 메시지가 정리된 경우 업데이트
+            if cleaned_message != message:
+                print(f"🧹 정리: '{message[:50]}...' → '{cleaned_message[:50]}...'")
+            item['message'] = cleaned_message
+            filtered_data.append(item)
+        else:
+            # None인 경우 (삭제 대상)는 제외
+            dropped_count += 1
+            print(f"🗑️ 감정표현 삭제: '{message[:50]}...'")
+    
+    final_count = len(filtered_data)
+    print(f"✅ 감정표현 필터링 완료: {original_count}개 → {final_count}개 메시지")
+    
+    if dropped_count > 0:
+        print(f"  • 감정표현 메시지 {dropped_count}개 삭제됨")
+    
+    return filtered_data
+
+
+def drop_short_messages(data: List[Dict[str, Any]], min_length: int = 4) -> List[Dict[str, Any]]:
+    """짧은 메시지를 삭제합니다."""
+    print("  • 짧은 메시지 삭제 중...")
+    original_count = len(data)
+    
+    filtered_data = []
+    dropped_count = 0
+    
+    for item in data:
+        message = item.get('message', '')
+        if not isinstance(message, str):
+            filtered_data.append(item)
+            continue
+            
+        message = message.strip()
+        message_length = len(message)
+        
+        if message_length > min_length:
+            filtered_data.append(item)
+        else:
+            dropped_count += 1
+            print(f"🗑️ 짧은 메시지 삭제: '{message}' (길이: {message_length}자)")
+    
+    final_count = len(filtered_data)
+    if dropped_count > 0:
+        print(f"  • 짧은 메시지 {dropped_count}개 삭제됨")
+    
+    return filtered_data
 
 
 def convert_korean_date_to_iso(date_str: str, time_str: str) -> Optional[str]:
