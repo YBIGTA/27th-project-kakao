@@ -9,24 +9,27 @@
 5. product_node.py - 최종 상품 랭킹/가드레일
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any
 from .preprocess.main_processor import main
-from .nodes.uppercategory_node import UpperCategoryNode
-from .nodes.lowercategory_node import LowerCategoryNode
-from .nodes.joint_gate_node import JointGateNode
-from .nodes.db_filter_node import DBFilterNode
-from .nodes.product_node import ProductNode
+from .core.nodes import (
+    init_node,
+    parent_score_node,
+    child_score_node,
+    hierarchy_node,
+    select_top3_node,
+    db_filter_node,
+    product_node,
+    pack_node
+)
 
 class PipelineEngine:
     def __init__(self):
         """
-        파이프라인 엔진을 초기화합니다.
+        LangGraph 파이프라인 엔진을 초기화합니다.
         """
-        self.upper_node = UpperCategoryNode()
-        self.lower_node = LowerCategoryNode()
-        self.joint_gate_node = JointGateNode()
-        self.db_filter_node = DBFilterNode()
-        self.product_node = ProductNode()
+
+
+
     
     async def run(
         self,
@@ -74,88 +77,103 @@ class PipelineEngine:
                 "user_profile": user_profile,
             }
             
-            # 2) 상위 카테고리 노드
-            upper_result = self.upper_node.process(
-                preprocessed_data
+            # 2) CSV 파일에서 rows 생성
+            import pandas as pd
+            df = pd.read_csv(csv_file_path)
+            rows = []
+            for idx, row in df.iterrows():
+                text_col = None
+                for col in ['text', 'message', 'content']:
+                    if col in df.columns:
+                        text_col = col
+                        break
+
+                if text_col and pd.notna(row[text_col]):
+                    from .core.state import MessageRow
+                    rows.append(MessageRow(
+                        idx=idx,
+                        date=str(row.get('date', '')),
+                        user=str(row.get('user', '')),
+                        text=str(row[text_col]).strip()
+                    ))
+
+            # GraphState 생성 및 초기화
+            from .core.state import GraphState, GiftContext
+            state = GraphState(
+                rows=rows,
+                ctx=GiftContext(
+                    age=age,
+                    gender=gender,
+                    relation=relation,
+                    budget_min=budget_min,
+                    budget_max=budget_max
+                ),
+                debug={}
             )
-            probs_upper, upper_reasoning, upper_confidence_data = upper_result
             
-            if not probs_upper:
+            # init_node 호출
+            state = init_node(state)
+            
+            # parent_score_node 호출
+            state = await parent_score_node(state)
+            
+            if not state.parent_scores:
                 return {
                     "analysis": {
                         "message": "상위 카테고리를 분석할 수 없습니다.",
-                        "upper_reasoning": upper_reasoning
+                        "parent_reasoning": state.parent_reasoning
                     },
                     "selections": []
                 }
             
-            # 3) 하위 카테고리 노드
-            lower_result = self.lower_node.process(
-                preprocessed_data
-            )
-            probs_lower_by_parent, lower_reasoning, lower_confidence_data = lower_result
+            # 3) 하위 카테고리 노드 (child_score_node)
+            state = await child_score_node(state)
             
-            if not probs_lower_by_parent:
+            if not state.child_scores:
                 return {
                     "analysis": {
                         "message": "하위 카테고리를 분석할 수 없습니다.",
-                        "upper_reasoning": upper_reasoning,
-                        "lower_reasoning": lower_reasoning
+                        "parent_scores": state.parent_scores
                     },
                     "selections": []
                 }
             
-            # 4) 결합+게이트 연산 노드
-            leaf, merged_reasoning = self.joint_gate_node.process(
-                probs_upper, probs_lower_by_parent, upper_reasoning, lower_reasoning
-            )
+            # 4) 계층 결합 노드 (hierarchy_node)
+            state = await hierarchy_node(state)
             
-            if not leaf:
+            # 5) Top-3 선택 노드 (select_top3_node)
+            state = select_top3_node(state)
+            
+            if not state.top3_children:
                 return {
                     "analysis": {
                         "message": "최종 카테고리를 선택할 수 없습니다.",
-                        "merged_reasoning": merged_reasoning
+                        "parent_scores": state.parent_scores,
+                        "child_scores": state.child_scores
                     },
                     "selections": []
                 }
             
-            # 5) DB 필터링 노드
-            candidates = await self.db_filter_node.process(
-                leaf, budget_min, budget_max
-            )
+            # 6) DB 필터링 노드 (PostgreSQL 상품 조회)
+            state = await db_filter_node(state)
             
-            if not candidates:
+            if not state.candidate_products:
                 return {
                     "analysis": {
                         "message": "조건에 맞는 상품을 찾을 수 없습니다.",
-                        "merged_reasoning": merged_reasoning,
-                        "selected_categories": [item['child'] for item in leaf]
+                        "selected_categories": state.top3_children
                     },
                     "selections": []
                 }
             
-            # 6) 상품 랭킹/가드레일 노드
-            final_products = await self.product_node.select_final_products(
-                candidates, user_profile, 
-                sentence_context=self._extract_sentence_context(
-                    upper_confidence_data, lower_confidence_data
-                )
-            )
+            # 7) 상품 랭킹/가드레일 노드
+            state = await product_node(state)
             
-            # 결과 구성
-            analysis = {
-                "upper_categories": probs_upper,
-                "lower_categories_by_parent": probs_lower_by_parent,
-                "selected_categories": [item['child'] for item in leaf],
-                "category_scores": [item['score'] for item in leaf],
-                "reasoning": merged_reasoning,
-                "candidate_count": len(candidates)
-            }
+            # 8) 패키징 노드
+            state = pack_node(state)
             
-            return {
-                "analysis": analysis,
-                "selections": final_products
-            }
+            # 결과 반환
+            return state.debug["final_payload"]
             
         except Exception as e:
             print(f"파이프라인 실행 중 오류 발생: {e}")
@@ -166,52 +184,4 @@ class PipelineEngine:
                 "selections": []
             }
     
-    def _extract_sentence_context(
-        self,
-        upper_confidence_data: Dict[str, Any] = None,
-        lower_confidence_data: Dict[str, Any] = None
-    ) -> List[str]:
-        """
-        문장 라우팅 정보를 추출합니다.
-        LLM 응답의 evidence와 reason 필드를 활용합니다.
-        
-        Args:
-            upper_confidence_data: 상위 카테고리 confidence 데이터
-            lower_confidence_data: 하위 카테고리 confidence 데이터
-            
-        Returns:
-            List[str]: 관련 문장들
-        """
-        sentence_context = []
-        
-        # 1. 상위 카테고리 evidence 추출
-        if upper_confidence_data:
-            for cat_name, cat_data in upper_confidence_data.items():
-                if isinstance(cat_data, dict):
-                    # evidence 필드에서 문장 추출
-                    evidence = cat_data.get("evidence", [])
-                    for ev in evidence:
-                        if isinstance(ev, dict) and "text" in ev:
-                            sentence_context.append(f"[{cat_name}] {ev['text']}")
-                    
-                    # reason 필드 추가
-                    reason = cat_data.get("reason", "")
-                    if reason:
-                        sentence_context.append(f"[{cat_name} 근거] {reason}")
-        
-        # 2. 하위 카테고리 evidence 추출
-        if lower_confidence_data:
-            for cat_path, cat_data in lower_confidence_data.items():
-                if isinstance(cat_data, dict):
-                    # evidence 필드에서 문장 추출
-                    evidence = cat_data.get("evidence", [])
-                    for ev in evidence:
-                        if isinstance(ev, dict) and "text" in ev:
-                            sentence_context.append(f"[{cat_path}] {ev['text']}")
-                    
-                    # reason 필드 추가
-                    reason = cat_data.get("reason", "")
-                    if reason:
-                        sentence_context.append(f"[{cat_path} 근거] {reason}")
-        
-        return sentence_context
+
