@@ -1,6 +1,6 @@
 -- 상품 메타 테이블 
 
-CREATE TABLE IF NOT EXISTS products (
+CREATE TABLE IF NOT EXISTS products_meta (
   product_url      TEXT NOT NULL,                              -- 상품 상세 링크
   url_hash         TEXT PRIMARY KEY,                           -- sha256(product_url)
   top_category     VARCHAR(100),                               -- 상위 카테고리 (원본 보존)
@@ -9,19 +9,18 @@ CREATE TABLE IF NOT EXISTS products (
   product_name     VARCHAR(255) NOT NULL,                      -- 따옴표 제거한 상품명
   price            INT NOT NULL,                               -- 원화 정수
   satisfaction_pct NUMERIC(5,2),                               -- 만족도(%)
-  review_count     INT,                                        -- 리뷰 수
-  wish_count       INT,                                        -- 위시 수
-  tags             TEXT,                                       -- 태그 원문(쉼표/슬래시 구분 등)
-  updated_at       TIMESTAMPTZ DEFAULT now()                   -- 갱신 시각
+  review_count     NUMERIC(10,1),                              -- 리뷰 수 (소수점 허용)
+  wish_count       NUMERIC(10,1),                              -- 위시 수 (소수점 허용)
+  tags             TEXT                                        -- 태그 원문(쉼표/슬래시 구분 등)
 );
 
 -- 인덱스 
 CREATE INDEX IF NOT EXISTS idx_topcat
-  ON products(top_category);
+  ON products_meta(top_category);
 
 CREATE INDEX IF NOT EXISTS idx_subcat_price
-  ON products(sub_category, price);
+  ON products_meta(sub_category, price);
 
 -- 품질 점검용 제약/체크
-ALTER TABLE products
+ALTER TABLE products_meta
   ADD CONSTRAINT chk_price_positive CHECK (price >= 0) NOT VALID;
