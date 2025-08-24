@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 from .processor import KakaoProcessor
 from .utils.filter_utils import filter_recent_messages_pandas, filter_by_user
-from .utils.text_utils import preprocess_messages
+from .utils.text_utils import preprocess_messages, clean_emotion_messages, drop_short_messages
 from .utils.sbd_processor import process_sbd_merge, SBDConfig
 
 class TextProcessor:
@@ -55,20 +55,27 @@ class TextProcessor:
             # 3. 사용자별 필터링
             user_filtered_data = filter_by_user(filtered_data, self.user_name)
             
-            # 4. 전처리 자동 적용
+            # 4. 기본 전처리 (SBD 전에 실행)
+            print("🧹 기본 전처리 중...")
             preprocessed_data = preprocess_messages(user_filtered_data)
             
-            # 5. 익명화 처리 (민감정보 마스킹)
-            from .utils.anonymize import anonymize_messages
-            anonymized_data = anonymize_messages(preprocessed_data)
-            
-            # 6. 어미 교정 (SBD 전)
-            # final_data = spell_check_kakao_messages(preprocessed_data)  # 함수가 정의되지 않아 주석 처리
-            final_data = anonymized_data
-            
-            # 7. SBD 문장 병합
+            # 5. SBD 문장 병합 (기본 전처리 이후)
+            print("🔗 SBD 문장 병합 중...")
             sbd_config = SBDConfig()
-            final_data = process_sbd_merge(final_data, sbd_config)
+            sbd_merged_data = process_sbd_merge(preprocessed_data, sbd_config)
+            
+            # 6. 감정표현 메시지 필터링 (SBD 이후)
+            print("🧹 감정표현 메시지 필터링 중...")
+            emotion_filtered_data = clean_emotion_messages(sbd_merged_data)
+            
+            # 7. 짧은 메시지 제거 (마지막)
+            print("✂️ 짧은 메시지 제거 중...")
+            short_filtered_data = drop_short_messages(emotion_filtered_data, min_length=4)
+            
+            # 8. 익명화 처리 (민감정보 마스킹)
+            print("🔒 익명화 처리 중...")
+            from .utils.anonymize import anonymize_messages
+            final_data = anonymize_messages(short_filtered_data)
             
             return {
                 'data': final_data,

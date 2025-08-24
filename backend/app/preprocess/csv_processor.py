@@ -9,7 +9,7 @@ import io
 import csv
 from .utils.file_utils import read_csv_file
 from .utils.filter_utils import filter_recent_messages_pandas, filter_by_user
-from .utils.text_utils import preprocess_messages
+from .utils.text_utils import preprocess_messages, clean_emotion_messages, drop_short_messages
 from .utils.sbd_processor import process_sbd_merge, SBDConfig
 
 class CSVProcessor:
@@ -82,26 +82,32 @@ class CSVProcessor:
             user_filtered_data = filter_by_user(filtered_data, self.user_name)
             print(f"🔍 사용자 필터링 후: {len(user_filtered_data)}개")
             
-            # 4. 전처리 자동 적용
-            print(f"🔍 전처리 전: {len(user_filtered_data)}개")
+            # 4. 기본 전처리 (SBD 전에 실행)
+            print(f"🔍 기본 전처리 전: {len(user_filtered_data)}개")
             preprocessed_data = preprocess_messages(user_filtered_data)
-            print(f"🔍 전처리 후: {len(preprocessed_data)}개")
+            print(f"🔍 기본 전처리 후: {len(preprocessed_data)}개")
             
-            # 5. 익명화 처리 (민감정보 마스킹)
-            print(f"🔍 익명화 전: {len(preprocessed_data)}개")
-            from .utils.anonymize import anonymize_messages
-            anonymized_data = anonymize_messages(preprocessed_data)
-            print(f"🔍 익명화 후: {len(anonymized_data)}개")
-            
-            # 6. 어미 교정 (SBD 전)
-            # final_data = spell_check_kakao_messages(preprocessed_data)  # 함수가 정의되지 않아 주석 처리
-            final_data = anonymized_data
-            
-            # 7. SBD 문장 병합
-            print(f"🔍 SBD 전: {len(final_data)}개")
+            # 5. SBD 문장 병합 (기본 전처리 이후)
+            print(f"🔍 SBD 전: {len(preprocessed_data)}개")
             sbd_config = SBDConfig()
-            final_data = process_sbd_merge(final_data, sbd_config) # Changed preprocessed_data to final_data
-            print(f"🔍 SBD 후: {len(final_data)}개")
+            sbd_merged_data = process_sbd_merge(preprocessed_data, sbd_config)
+            print(f"🔍 SBD 후: {len(sbd_merged_data)}개")
+            
+            # 6. 감정표현 메시지 필터링 (SBD 이후)
+            print(f"🔍 감정표현 필터링 전: {len(sbd_merged_data)}개")
+            emotion_filtered_data = clean_emotion_messages(sbd_merged_data)
+            print(f"🔍 감정표현 필터링 후: {len(emotion_filtered_data)}개")
+            
+            # 7. 짧은 메시지 제거 (마지막)
+            print(f"🔍 짧은 메시지 제거 전: {len(emotion_filtered_data)}개")
+            short_filtered_data = drop_short_messages(emotion_filtered_data, min_length=4)
+            print(f"🔍 짧은 메시지 제거 후: {len(short_filtered_data)}개")
+            
+            # 8. 익명화 처리 (민감정보 마스킹)
+            print(f"🔍 익명화 전: {len(short_filtered_data)}개")
+            from .utils.anonymize import anonymize_messages
+            final_data = anonymize_messages(short_filtered_data)
+            print(f"🔍 익명화 후: {len(final_data)}개")
             
             return {
                 'data': final_data,
