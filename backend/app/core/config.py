@@ -5,7 +5,7 @@ from typing import Optional
 from dotenv import load_dotenv
 
 # 환경 변수 로딩
-load_dotenv('../.env')
+load_dotenv('../../.env')
 
 @dataclass
 class LLMConfig:
