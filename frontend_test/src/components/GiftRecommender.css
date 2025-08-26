@@ -1,0 +1,334 @@
+.gift-recommender {
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  margin-bottom: 2rem;
+}
+
+.form-container {
+  padding: 2rem;
+}
+
+.form-container h2 {
+  margin: 0 0 2rem 0;
+  color: #333;
+  font-size: 1.8rem;
+  text-align: center;
+}
+
+.recommendation-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group label {
+  font-weight: 600;
+  color: #555;
+  font-size: 1rem;
+}
+
+.form-group input,
+.form-group select {
+  padding: 12px 16px;
+  border: 2px solid #e1e5e9;
+  border-radius: 10px;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-group input::placeholder {
+  color: #ccc;
+  font-size: 1rem;
+}
+
+.age-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.age-input-container input {
+  flex: 1;
+  padding-right: 40px;
+}
+
+.age-unit {
+  position: absolute;
+  right: 16px;
+  color: #999;
+  font-size: 1rem;
+  pointer-events: none;
+}
+
+.budget-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.budget-input-container input {
+  flex: 1;
+  padding-right: 40px;
+}
+
+.budget-unit {
+  position: absolute;
+  right: 16px;
+  color: #999;
+  font-size: 1rem;
+  pointer-events: none;
+}
+
+.budget-separator {
+  font-weight: 600;
+  color: #666;
+  margin: 0 1rem;
+}
+
+.form-group small {
+  color: #666;
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}
+
+.budget-group .budget-inputs {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.error-message {
+  background: #fee;
+  color: #c33;
+  padding: 1rem;
+  border-radius: 10px;
+  border: 1px solid #fcc;
+  font-size: 0.9rem;
+}
+
+.submit-btn {
+  background: linear-gradient(135deg, #FFF9C4 0%, #FFF59D 100%);
+  color: #333;
+  border: 2px solid #FFF59D;
+  padding: 16px 32px;
+  border-radius: 10px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  margin-top: 1rem;
+}
+
+.submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(255, 245, 157, 0.4);
+  background: linear-gradient(135deg, #FFF59D 0%, #FFF9C4 100%);
+}
+
+.submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 결과 컨테이너 */
+.result-container {
+  background: #f8f9fa;
+  padding: 2rem;
+  border-top: 1px solid #e1e5e9;
+}
+
+.result-container h3 {
+  margin: 0 0 2rem 0;
+  color: #333;
+  font-size: 1.8rem;
+  text-align: center;
+}
+
+.top-categories {
+  margin-bottom: 2rem;
+}
+
+.top-categories h4 {
+  margin: 0 0 1rem 0;
+  color: #555;
+  font-size: 1.2rem;
+}
+
+.category-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.category-tag {
+  background: #f0f0f0;
+  color: #666;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+
+.category-tag:hover {
+  background: #e0e0e0;
+  color: #333;
+  transform: translateY(-1px);
+}
+
+.category-tag.selected {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.no-products {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  padding: 2rem;
+  background: #f9f9f9;
+  border-radius: 10px;
+  margin: 1rem 0;
+}
+
+.recommended-products {
+  margin-bottom: 2rem;
+}
+
+.recommended-products h4 {
+  margin: 0 0 1rem 0;
+  color: #555;
+  font-size: 1.2rem;
+}
+
+.product-card {
+  background: white;
+  border-radius: 15px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  border: 1px solid #e1e5e9;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.product-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+}
+
+.product-card h5 {
+  margin: 0 0 0.5rem 0;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.product-price {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #FF8F00;
+  margin: 0.5rem 0;
+}
+
+.product-category {
+  color: #666;
+  font-size: 0.9rem;
+  margin: 0.5rem 0;
+}
+
+.product-reason {
+  color: #555;
+  line-height: 1.5;
+  margin: 1rem 0;
+}
+
+.product-link {
+  display: inline-block;
+  background: #FFB74D;
+  color: white;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
+}
+
+.product-link:hover {
+  background: #FFA726;
+}
+
+.product-link-hint {
+  position: absolute;
+  bottom: 10px;
+  right: 15px;
+  font-size: 0.8rem;
+  color: #667eea;
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.evidence-sentences h4 {
+  margin: 0 0 1rem 0;
+  color: #555;
+  font-size: 1.2rem;
+}
+
+.evidence-sentences ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.evidence-sentences li {
+  background: white;
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  border-radius: 10px;
+  border-left: 4px solid #FFB74D;
+  color: #555;
+  line-height: 1.5;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .form-container,
+  .result-container {
+    padding: 1.5rem;
+  }
+  
+  .budget-inputs {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .budget-separator {
+    display: none;
+  }
+  
+  .category-tags {
+    justify-content: center;
+  }
+}
