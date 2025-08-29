@@ -131,8 +131,7 @@ python app/main.py \
 ### 일반적인 오류
 
 1. **API 키 오류**: `UPSTAGE_API_KEY` 환경 변수 확인
-2. **파일 없음**: CSV 파일 경로 및 존재 여부 확인
-3. **메모리 부족**: 대용량 데이터 처리 시 배치 크기 조정
+2. **파일 없음**: CSV 파일 경로 및 존재 여부 확인3. **메모리 부족**: 대용량 데이터 처리 시 배치 크기 조정
 
 ### 로그 확인
 
@@ -141,11 +140,3 @@ python app/main.py \
 export PYTHONPATH=.
 python -c "import logging; logging.basicConfig(level=logging.DEBUG)"
 ```
-
-## 📝 라이선스
-
-이 프로젝트는 MIT 라이선스 하에 배포됩니다.
-
-## 🤝 기여
-
-버그 리포트, 기능 제안, 풀 리퀘스트를 환영합니다.
